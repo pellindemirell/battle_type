@@ -1,9 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
 using TypingApp.Api.Data;
 using TypingApp.Api.Hubs;
 using TypingApp.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var corsAllowedOrigins = builder.Configuration["CORS_ALLOWED_ORIGINS"]?
+    .Split(
+        ',',
+        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? [];
 
 builder.Services.AddControllers();
 
@@ -22,6 +28,12 @@ builder.Services.AddSingleton<WordSelector>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddHostedService<InactiveRoomCleanupService>();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AngularPolicy", policy =>
@@ -33,14 +45,20 @@ builder.Services.AddCors(options =>
 
         if (builder.Environment.IsDevelopment())
             policy.SetIsOriginAllowed(_ => true);
-        else
-            policy.WithOrigins("http://localhost:4200");
+        else if (corsAllowedOrigins.Length > 0)
+            policy.WithOrigins(corsAllowedOrigins);
     });
 });
 
 var app = builder.Build();
 
-app.UseCors("AngularPolicy");
+app.UseForwardedHeaders();
+
+if (app.Environment.IsDevelopment() || corsAllowedOrigins.Length > 0)
+    app.UseCors("AngularPolicy");
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 if (app.Environment.IsDevelopment())
 {
@@ -53,6 +71,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.MapHub<TypingHub>("/raceHub");
+app.MapFallbackToFile("index.html");
 
 using (var scope = app.Services.CreateScope())
 {
