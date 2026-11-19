@@ -1,0 +1,165 @@
+{
+  "canvas": {
+    "width": 2140,
+    "height": 768,
+    "scale": 0.7867647058823529
+  },
+  "sprites": [
+    {
+      "name": "type-t",
+      "kind": "key",
+      "file": "type-t.png",
+      "x0": 73,
+      "y0": 101,
+      "w": 248,
+      "h": 276
+    },
+    {
+      "name": "type-y",
+      "kind": "key",
+      "file": "type-y.png",
+      "x0": 323,
+      "y0": 69,
+      "w": 244,
+      "h": 271
+    },
+    {
+      "name": "type-p",
+      "kind": "key",
+      "file": "type-p.png",
+      "x0": 580,
+      "y0": 102,
+      "w": 239,
+      "h": 268
+    },
+    {
+      "name": "type-e",
+      "kind": "key",
+      "file": "type-e.png",
+      "x0": 823,
+      "y0": 75,
+      "w": 251,
+      "h": 277
+    },
+    {
+      "name": "battle-B",
+      "kind": "key",
+      "file": "battle-B.png",
+      "x0": 580,
+      "y0": 420,
+      "w": 239,
+      "h": 268
+    },
+    {
+      "name": "battle-a",
+      "kind": "key",
+      "file": "battle-a.png",
+      "x0": 831,
+      "y0": 431,
+      "w": 237,
+      "h": 265
+    },
+    {
+      "name": "battle-t-1",
+      "kind": "key",
+      "file": "battle-t-1.png",
+      "x0": 1086,
+      "y0": 419,
+      "w": 234,
+      "h": 264
+    },
+    {
+      "name": "battle-t-2",
+      "kind": "key",
+      "file": "battle-t-2.png",
+      "x0": 1333,
+      "y0": 429,
+      "w": 239,
+      "h": 269
+    },
+    {
+      "name": "battle-l",
+      "kind": "key",
+      "file": "battle-l.png",
+      "x0": 1588,
+      "y0": 418,
+      "w": 237,
+      "h": 265
+    },
+    {
+      "name": "battle-e",
+      "kind": "key",
+      "file": "battle-e.png",
+      "x0": 1840,
+      "y0": 428,
+      "w": 234,
+      "h": 264
+    },
+    {
+      "name": "burst-a-1",
+      "kind": "burst",
+      "file": "burst-a-1.png",
+      "x0": 307,
+      "y0": 389,
+      "w": 136,
+      "h": 54,
+      "origin": "0% 0%",
+      "nearestKey": "type-t"
+    },
+    {
+      "name": "burst-a-2",
+      "kind": "burst",
+      "file": "burst-a-2.png",
+      "x0": 365,
+      "y0": 437,
+      "w": 114,
+      "h": 114,
+      "origin": "0% 0%",
+      "nearestKey": "type-t"
+    },
+    {
+      "name": "burst-a-3",
+      "kind": "burst",
+      "file": "burst-a-3.png",
+      "x0": 473,
+      "y0": 473,
+      "w": 54,
+      "h": 136,
+      "origin": "100% 0%",
+      "nearestKey": "battle-B"
+    },
+    {
+      "name": "burst-b-1",
+      "kind": "burst",
+      "file": "burst-b-1.png",
+      "x0": 1110,
+      "y0": 147,
+      "w": 53,
+      "h": 136,
+      "origin": "0% 0%",
+      "nearestKey": "type-e"
+    },
+    {
+      "name": "burst-b-2",
+      "kind": "burst",
+      "file": "burst-b-2.png",
+      "x0": 1158,
+      "y0": 204,
+      "w": 114,
+      "h": 114,
+      "origin": "0% 0%",
+      "nearestKey": "type-e"
+    },
+    {
+      "name": "burst-b-3",
+      "kind": "burst",
+      "file": "burst-b-3.png",
+      "x0": 1193,
+      "y0": 313,
+      "w": 136,
+      "h": 53,
+      "origin": "0% 100%",
+      "nearestKey": "battle-t-1"
+    }
+  ]
+}
