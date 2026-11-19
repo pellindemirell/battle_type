@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/TypingApp.Api.Tests/TypingApp.Api.Tests.csproj" />
+    <Project Path="backend/TypingApp.Api/TypingApp.Api.csproj" />
+  </Folder>
+</Solution>
