@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:typing-app-ui": "node dist/typing-app-ui/server/server.mjs",
-    "test:race-ui": "node scripts/verify-race-ui.mjs"
+    "test:race-ui": "node scripts/verify-race-ui.mjs",
+    "test:e2e:single-origin": "node scripts/verify-single-origin-race.mjs"
   },
   "private": true,
   "packageManager": "npm@11.13.0",
