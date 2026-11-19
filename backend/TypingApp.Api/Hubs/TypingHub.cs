@@ -338,15 +338,19 @@ public class TypingHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+
         foreach (var entry in _rooms.Snapshot())
         {
             var room = entry.Value;
             PlayerState? disconnectedPlayer = null;
+            RaceResult? result = null;
             bool removeRoom;
             var resetCountdown = false;
 
             lock (room.Lock)
             {
+                var wasRunning = room.Phase == RacePhase.Running;
                 room.Players.Remove(Context.ConnectionId, out disconnectedPlayer);
                 removeRoom = disconnectedPlayer is not null && room.Players.Count == 0;
 
@@ -360,6 +364,24 @@ public class TypingHub : Hub
                     foreach (var player in room.Players.Values)
                         player.Ready = false;
                     resetCountdown = true;
+                }
+
+                if (disconnectedPlayer is not null &&
+                    wasRunning &&
+                    room.Players.Count == 1)
+                {
+                    var winner = room.Players.Single();
+                    winner.Value.FinishedAt = now;
+                    winner.Value.Ready = false;
+                    room.Finished = true;
+                    room.Phase = RacePhase.Finished;
+                    result = BuildResult(
+                        room,
+                        winner.Key,
+                        now,
+                        new KeyValuePair<string, PlayerState>(
+                            Context.ConnectionId,
+                            disconnectedPlayer));
                 }
             }
 
@@ -376,6 +398,9 @@ public class TypingHub : Hub
             await Clients.Group(room.Code).SendAsync(
                 "PlayerDisconnected",
                 $"{disconnectedPlayer.Name} bağlantısı kesildi.");
+
+            if (result is not null)
+                await Clients.Group(room.Code).SendAsync("RaceFinished", result);
 
             if (resetCountdown)
                 await SendReadyStatus(room);
@@ -420,10 +445,15 @@ public class TypingHub : Hub
     private static RaceResult BuildResult(
         RoomState room,
         string winnerId,
-        DateTime now)
+        DateTime now,
+        KeyValuePair<string, PlayerState>? additionalPlayer = null)
     {
         var startedAt = room.StartedAt!.Value;
-        var players = room.Players.Select(entry =>
+        var entries = room.Players.ToList();
+        if (additionalPlayer is { } extraPlayer)
+            entries.Add(extraPlayer);
+
+        var players = entries.Select(entry =>
         {
             var player = entry.Value;
             var finishedAt = player.FinishedAt ?? now;
