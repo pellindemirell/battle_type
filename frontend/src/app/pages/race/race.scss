@@ -112,8 +112,7 @@ h1 {
   transition:
     transform 140ms ease,
     translate 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
+    box-shadow 180ms ease;
   transform-style: preserve-3d;
 }
 
@@ -162,6 +161,16 @@ h1 {
   background: var(--ac);
 }
 
+.difficulty-pip.bouncing {
+  animation: pip-bounce 450ms ease-out both;
+  animation-delay: calc(var(--pip-index) * 60ms);
+}
+
+@keyframes pip-bounce {
+  40% { transform: translateY(-4px); }
+  100% { transform: translateY(0); }
+}
+
 .difficulty-range {
   color: #f4efff;
   font-size: .9rem;
@@ -188,6 +197,24 @@ h1 {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.example-word.typing {
+  color: var(--ac);
+}
+
+.typing-caret {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  margin-left: 2px;
+  background: currentColor;
+  vertical-align: -2px;
+  animation: caret-blink 700ms steps(1, end) infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
 }
 
 .room-option-selects {

@@ -55,6 +55,7 @@ export class Race implements OnInit, OnDestroy {
   private typingEngine = inject(TypingEngine);
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
+  private difficultyTypingInterval?: ReturnType<typeof setInterval>;
   private reconnecting = false;
   private targetTextValue = '';
 
@@ -107,6 +108,8 @@ export class Race implements OnInit, OnDestroy {
     }
   ];
   readonly difficultyPips = [0, 1, 2, 3];
+  activeDifficultyPreview: RaceDifficulty | null = null;
+  typedDifficultyExample = '';
   wrongKey: string | null = null;
   capsLockOn = false;
   opponentName = '';
@@ -239,6 +242,7 @@ export class Race implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
     this.clearWrongKeyTimer();
+    this.clearDifficultyTypingInterval();
   }
 
   async createRoom(): Promise<void> {
@@ -396,10 +400,40 @@ export class Race implements OnInit, OnDestroy {
     card.style.removeProperty('--ry');
   }
 
+  startDifficultyPreview(option: DifficultyOption): void {
+    this.clearDifficultyTypingInterval();
+    this.activeDifficultyPreview = option.value;
+    this.typedDifficultyExample = '';
+    let characterIndex = 0;
+    this.difficultyTypingInterval = setInterval(() => {
+      characterIndex += 1;
+      this.typedDifficultyExample = option.example.slice(0, characterIndex);
+      this.changeDetector.markForCheck();
+
+      if (characterIndex >= option.example.length) {
+        this.clearDifficultyTypingInterval();
+      }
+    }, 55);
+  }
+
+  stopDifficultyPreview(option: DifficultyOption): void {
+    if (this.activeDifficultyPreview !== option.value) return;
+    this.clearDifficultyTypingInterval();
+    this.activeDifficultyPreview = null;
+    this.typedDifficultyExample = '';
+  }
+
   private clearWrongKeyTimer(): void {
     if (this.wrongKeyTimer) {
       clearTimeout(this.wrongKeyTimer);
       this.wrongKeyTimer = undefined;
+    }
+  }
+
+  private clearDifficultyTypingInterval(): void {
+    if (this.difficultyTypingInterval !== undefined) {
+      clearInterval(this.difficultyTypingInterval);
+      this.difficultyTypingInterval = undefined;
     }
   }
 

@@ -20,6 +20,8 @@
           [attr.aria-pressed]="difficulty === option.value"
           [style.--ac]="option.accent"
           [style.--lp]="option.selectedBase"
+          (pointerenter)="startDifficultyPreview(option)"
+          (pointerleave)="stopDifficultyPreview(option)"
           (pointermove)="setDifficultyTilt($event)"
           (pointerleave)="resetDifficultyTilt($event)"
           (click)="difficulty = option.value"
@@ -32,13 +34,24 @@
                 *ngFor="let pip of difficultyPips"
                 class="difficulty-pip"
                 [class.filled]="pip < option.pips"
+                [class.bouncing]="activeDifficultyPreview === option.value"
+                [style.--pip-index]="pip"
               ></span>
             </span>
             <span class="difficulty-range">{{ option.description }}</span>
             <span class="difficulty-special">{{ option.specialCharacters }}</span>
             <span class="difficulty-example">
               <span class="example-label">Örnek</span>
-              <span class="example-word">{{ option.example }}</span>
+              <span
+                class="example-word"
+                [class.typing]="activeDifficultyPreview === option.value"
+              >
+                {{ activeDifficultyPreview === option.value ? typedDifficultyExample : option.example }}<span
+                  class="typing-caret"
+                  *ngIf="activeDifficultyPreview === option.value"
+                  aria-hidden="true"
+                ></span>
+              </span>
             </span>
           </span>
         </button>
