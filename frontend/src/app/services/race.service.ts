@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { inject, Injectable, PLATFORM_ID } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { environment } from '../../environment';
@@ -8,7 +9,7 @@ import { RaceCharacterMode, RaceDifficulty } from '../models/race';
   providedIn: 'root'
 })
 export class RaceService {
-  private readonly connection: signalR.HubConnection;
+  private readonly connection: signalR.HubConnection | null;
   private readonly reconnectingSubject = new Subject<boolean>();
   private startPromise?: Promise<void>;
   private reconnectWait?: {
@@ -18,6 +19,11 @@ export class RaceService {
   };
 
   constructor() {
+    if (!isPlatformBrowser(inject(PLATFORM_ID))) {
+      this.connection = null;
+      return;
+    }
+
     this.connection = new signalR.HubConnectionBuilder()
       .withUrl(environment.hubUrl)
       .withAutomaticReconnect()
@@ -35,7 +41,8 @@ export class RaceService {
   }
 
   async connect(): Promise<void> {
-    const state = this.connection.state;
+    const connection = this.requireConnection();
+    const state = connection.state;
 
     if (state === signalR.HubConnectionState.Connected) return;
     if (state === signalR.HubConnectionState.Connecting && this.startPromise) {
@@ -48,7 +55,7 @@ export class RaceService {
       throw new Error(`SignalR bağlantısı başlatılamadı: ${state}`);
     }
 
-    const startPromise = this.connection.start();
+    const startPromise = connection.start();
     this.startPromise = startPromise;
 
     try {
@@ -93,7 +100,7 @@ export class RaceService {
     playerName: string
   ): Promise<string> {
     await this.connect();
-    return await this.connection.invoke<string>(
+    return await this.requireConnection().invoke<string>(
       'CreateRoom',
       difficulty,
       wordCount,
@@ -104,27 +111,28 @@ export class RaceService {
 
   async joinRoom(roomCode: string, playerName: string): Promise<void> {
     await this.connect();
-    await this.connection.invoke('JoinRoom', roomCode, playerName);
+    await this.requireConnection().invoke('JoinRoom', roomCode, playerName);
   }
 
   async setReady(roomCode: string): Promise<void> {
     await this.connect();
-    await this.connection.invoke('SetReady', roomCode);
+    await this.requireConnection().invoke('SetReady', roomCode);
   }
 
   async rematch(roomCode: string): Promise<void> {
     await this.connect();
-    await this.connection.invoke('Rematch', roomCode);
+    await this.requireConnection().invoke('Rematch', roomCode);
   }
 
   async keyPress(roomCode: string, key: string): Promise<void> {
     await this.connect();
-    await this.connection.invoke('KeyPress', roomCode, key);
+    await this.requireConnection().invoke('KeyPress', roomCode, key);
   }
 
   on(eventName: string, callback: (...args: any[]) => void): () => void {
+    if (!this.connection) return () => {};
     this.connection.on(eventName, callback);
-    return () => this.connection.off(eventName, callback);
+    return () => this.connection?.off(eventName, callback);
   }
 
   onreconnecting(callback: (error?: Error) => void): () => void {
@@ -142,6 +150,14 @@ export class RaceService {
   }
 
   get connectionId(): string | null {
-    return this.connection.connectionId;
+    return this.connection?.connectionId ?? null;
+  }
+
+  private requireConnection(): signalR.HubConnection {
+    if (!this.connection) {
+      throw new Error('SignalR bağlantısı yalnızca tarayıcıda kullanılabilir.');
+    }
+
+    return this.connection;
   }
 }
