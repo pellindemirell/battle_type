@@ -84,3 +84,13 @@ Set-Location ..
 dotnet build
 dotnet test
 ```
+
+With the development backend and Angular proxy running, validate two-player
+SignalR over the dev origin (including the CORS preflight check):
+
+```powershell
+Set-Location .\frontend
+$env:SINGLE_ORIGIN_BASE_URL = "http://localhost:4200"
+npm run test:e2e:single-origin
+Remove-Item Env:\SINGLE_ORIGIN_BASE_URL
+```

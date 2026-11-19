@@ -15,6 +15,28 @@ assert.equal(origin.protocol, 'http:', 'The single-origin test must run without 
 const response = await fetch(origin);
 assert.equal(response.status, 200, `The application did not respond at ${baseUrl}`);
 
+if (origin.port === '4200') {
+  const backendUrl = new URL(
+    '/raceHub/negotiate?negotiateVersion=1',
+    process.env.DEV_BACKEND_URL ?? 'http://localhost:5027'
+  );
+  const preflight = await fetch(backendUrl, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: origin.origin,
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'x-requested-with,content-type'
+    }
+  });
+  assert.equal(preflight.status, 204, 'The development CORS preflight must succeed');
+  assert.equal(
+    preflight.headers.get('access-control-allow-origin'),
+    origin.origin,
+    'The development backend must allow the Angular origin'
+  );
+  console.log(`Development CORS preflight allowed ${origin.origin}`);
+}
+
 const browser = await chromium.launch({
   headless: true,
   ...(chromePath ? { executablePath: chromePath } : {})
