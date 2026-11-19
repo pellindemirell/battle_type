@@ -83,7 +83,7 @@ export class BrandLogo implements OnDestroy {
   }
 
   onBurstAnimationEnd(event: AnimationEvent, index: number): void {
-    if (event.animationName === 'burst-open' && index === 2) {
+    if (event.animationName.endsWith('burst-open') && index === 2) {
       this.introActive = false;
       this.changeDetector.markForCheck();
     }
