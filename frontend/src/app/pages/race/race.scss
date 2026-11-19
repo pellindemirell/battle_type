@@ -3,14 +3,14 @@
   margin: 40px auto;
   padding: 24px;
   font-family: 'Segoe UI', system-ui, sans-serif;
-  color: #1a1a2e;
+  color: #f4efff;
 }
 
 h1 {
   font-size: 2rem;
   margin-bottom: 24px;
   text-align: center;
-  color: #16213e;
+  color: #f4efff;
 }
 
 /* Setup */
@@ -34,13 +34,15 @@ h1 {
   width: min(100%, 680px);
   margin: 0 auto;
   padding: 18px;
-  border: 1px solid #d5dbea;
+  border: 1px solid rgba(224, 212, 255, .18);
   border-radius: 14px;
-  background: #fff;
+  background: rgba(10, 6, 20, .74);
+  color: #f4efff;
+  backdrop-filter: blur(12px);
 
   h2 {
     margin: 0;
-    color: #16213e;
+    color: #f4efff;
     font-size: 1.15rem;
   }
 }
@@ -56,16 +58,16 @@ h1 {
   gap: 5px;
   min-height: 76px;
   padding: 12px;
-  border: 2px solid #d5dbea;
+  border: 2px solid rgba(224, 212, 255, .2);
   border-radius: 10px;
-  background: #fff;
-  color: #16213e;
+  background: rgba(29, 20, 43, .9);
+  color: #f4efff;
   text-align: left;
   cursor: pointer;
   transition: transform 0.18s ease, opacity 0.18s ease;
 
   span {
-    color: #68738a;
+    color: #c9c0da;
     font-size: 0.85rem;
   }
 
@@ -79,8 +81,8 @@ h1 {
   }
 
   &.selected {
-    border-color: #0f3460;
-    background: #f0f4ff;
+    border-color: #b48aff;
+    background: rgba(93, 46, 146, .56);
     transform: translateY(-2px);
   }
 }
@@ -93,7 +95,7 @@ h1 {
   label {
     display: grid;
     gap: 6px;
-    color: #34405a;
+    color: #e4dcef;
     font-size: 0.9rem;
     font-weight: 600;
   }
@@ -106,27 +108,29 @@ h1 {
   align-items: center;
   gap: 10px;
   margin: 18px auto;
-  color: #34405a;
+  color: #e4dcef;
 }
 
 .difficulty-badge {
   padding: 6px 12px;
   border-radius: 999px;
-  background: #e8efff;
-  color: #0f3460;
+  background: rgba(83, 54, 127, .75);
+  color: #eee2ff;
   font-weight: 700;
 }
 
 input, select {
   padding: 12px 16px;
-  border: 2px solid #ddd;
+  border: 2px solid rgba(224, 212, 255, .24);
   border-radius: 10px;
+  background: rgba(23, 16, 34, .96);
+  color: #f4efff;
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s;
 
   &:focus {
-    border-color: #0f3460;
+    border-color: #b48aff;
   }
 }
 
@@ -150,7 +154,7 @@ select {
 
 .btn-secondary {
   padding: 12px 24px;
-  background: #e94560;
+  background: #b4233b;
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -159,17 +163,17 @@ select {
   cursor: pointer;
   transition: background 0.2s;
 
-  &:hover { background: #c73652; }
+  &:hover { background: #921b31; }
 }
 
 /* Status */
 .status-message {
   text-align: center;
   font-size: 1.1rem;
-  color: #555;
+  color: #e4dcef;
   margin: 16px 0;
   padding: 12px 24px;
-  background: #f0f4ff;
+  background: rgba(37, 27, 55, .88);
   border-radius: 10px;
   border-left: 4px solid #0f3460;
 }
@@ -182,8 +186,8 @@ select {
   gap: 4px;
   margin: 20px auto;
   padding: 20px 32px;
-  background: #fff8e1;
-  border: 2px dashed #f9a825;
+  background: rgba(72, 49, 8, .72);
+  border: 2px dashed #d6a52a;
   border-radius: 14px;
   width: fit-content;
   text-align: center;
@@ -191,12 +195,12 @@ select {
   strong {
     font-size: 2.5rem;
     letter-spacing: 8px;
-    color: #e65100;
+    color: #ffe2a6;
     font-family: monospace;
   }
 
   small {
-    color: #888;
+    color: #ffe2a6;
     font-size: 0.85rem;
   }
 }
@@ -209,14 +213,14 @@ select {
   .countdown-number {
     font-size: 6rem;
     font-weight: 900;
-    color: #e94560;
+    color: #ffabb8;
     line-height: 1;
     animation: pulse 1s ease-in-out;
   }
 
   p {
     font-size: 1.2rem;
-    color: #555;
+    color: #d5cbe4;
     margin-top: 8px;
   }
 }
@@ -235,16 +239,18 @@ select {
 }
 
 .target-text-box {
-  background: #f8f9fa;
-  border: 1px solid #e0e0e0;
+  background: rgba(10, 6, 20, .74);
+  border: 1px solid rgba(224, 212, 255, .18);
   border-radius: 12px;
   padding: 20px 24px;
+  color: #f4efff;
+  backdrop-filter: blur(12px);
 
   h2 {
     font-size: 1rem;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #888;
+    color: #c9c0da;
     margin-bottom: 10px;
   }
 }
@@ -258,18 +264,19 @@ select {
 }
 
 .completed-text {
-  color: #248a52;
+  color: #83e3a9;
 }
 
 .next-key {
-  background: #fff0bd;
+  color: #170f22;
+  background: #ffe28a;
   outline: 2px solid #f9a825;
 }
 
 .wrong-key {
   color: #fff;
-  background: #e94560;
-  outline-color: #e94560;
+  background: #b4233b;
+  outline-color: #b4233b;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   animation: shake 0.15s;
@@ -278,8 +285,8 @@ select {
 .keyboard-hint {
   padding: 12px 16px;
   text-align: center;
-  color: #0f3460;
-  background: #f0f4ff;
+  color: #e4dcef;
+  background: rgba(37, 27, 55, .88);
   border-radius: 10px;
 }
 
@@ -292,26 +299,27 @@ select {
 
 .player-card {
   padding: 20px;
-  background: #fff;
-  border: 2px solid #e0e0e0;
+  background: rgba(10, 6, 20, .74);
+  border: 2px solid rgba(224, 212, 255, .18);
   border-radius: 14px;
   text-align: center;
+  backdrop-filter: blur(12px);
 
   h3 {
     font-size: 1.1rem;
     margin-bottom: 12px;
-    color: #0f3460;
+    color: #f4efff;
   }
 
   &.opponent h3 {
-    color: #e94560;
+    color: #f4efff;
   }
 }
 
 .progress-bar-container {
   width: 100%;
   height: 20px;
-  background: #eee;
+  background: rgba(255, 255, 255, .13);
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -332,13 +340,13 @@ select {
 .progress-label {
   font-size: 1rem;
   font-weight: 700;
-  color: #333;
+  color: #e4dcef;
 }
 
 .error-label {
   display: block;
   margin-top: 6px;
-  color: #b4233b;
+  color: #ffabb8;
 }
 
 /* Finish screen */
@@ -351,8 +359,8 @@ select {
     margin-bottom: 16px;
   }
 
-  h1 { font-size: 2.5rem; color: #0f3460; margin-bottom: 8px; }
-  h2 { font-size: 1.8rem; color: #e94560; margin-bottom: 32px; }
+  h1 { font-size: 2.5rem; color: #f4efff; margin-bottom: 8px; }
+  h2 { font-size: 1.8rem; color: #f4efff; margin-bottom: 32px; }
 }
 
 .results-table-wrapper {
@@ -367,22 +375,22 @@ select {
 
   th, td {
     padding: 12px 16px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid rgba(224, 212, 255, .18);
   }
 
   th {
-    color: #555;
-    background: #f8f9fa;
+    color: #e4dcef;
+    background: rgba(37, 27, 55, .92);
   }
 
   .winner-row {
-    background: #fff8e1;
+    background: rgba(108, 78, 20, .48);
     font-weight: 700;
   }
 
   strong {
     display: block;
-    color: #e65100;
+    color: #ffe2a6;
   }
 }
 

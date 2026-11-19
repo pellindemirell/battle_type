@@ -78,8 +78,8 @@
 
 .wrong-key {
   color: #fff;
-  outline-color: #e94560;
-  background: #e94560;
+  outline-color: #b4233b;
+  background: #b4233b;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   animation: practice-shake 0.15s;
@@ -92,7 +92,7 @@
   left: 50%;
   padding: 1px 5px;
   border-radius: 4px;
-  background: #e94560;
+  background: #b4233b;
   color: #fff;
   font-size: 0.65em;
   letter-spacing: 0;
@@ -139,8 +139,8 @@
   }
 
   &.wrong-virtual-key {
-    outline: 2px solid #e94560;
-    background: #e94560;
+    outline: 2px solid #b4233b;
+    background: #b4233b;
     color: #fff;
   }
 }
@@ -190,6 +190,57 @@
 .error-message,
 .storage-warning {
   color: #b4233b;
+}
+
+.practice-page {
+  color: #f4efff;
+}
+
+.practice-header p,
+.eyebrow {
+  color: #c9c0da;
+}
+
+.back-link {
+  color: #d9c4ff;
+}
+
+.practice-text,
+.practice-result,
+.keyboard-panel {
+  border-color: rgba(224, 212, 255, .18);
+  background: rgba(10, 6, 20, .76);
+  color: #f4efff;
+  backdrop-filter: blur(12px);
+}
+
+.completed-text {
+  color: #83e3a9;
+}
+
+.next-key {
+  color: #170f22;
+  background: #ffe28a;
+}
+
+.virtual-key {
+  border-color: rgba(224, 212, 255, .2);
+  background: rgba(41, 31, 57, .96);
+  color: #f4efff;
+
+  &.next-key {
+    color: #170f22;
+    background: #ffe28a;
+  }
+}
+
+.practice-result {
+  border-color: rgba(224, 212, 255, .18);
+}
+
+.error-message,
+.storage-warning {
+  color: #ffabb8;
 }
 
 @keyframes practice-shake {
