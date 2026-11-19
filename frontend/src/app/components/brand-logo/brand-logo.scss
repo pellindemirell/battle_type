@@ -1,6 +1,15 @@
 :host {
   display: block;
-  width: clamp(240px, 34vw, 420px);
+  width: var(--brand-logo-size, clamp(240px, 34vw, 420px));
+}
+
+.logo-replay {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .logo-canvas {
@@ -25,4 +34,50 @@
 .burst-group,
 .burst-sprite {
   pointer-events: none;
+}
+
+.logo-canvas.intro-active .key-sprite {
+  animation: key-land 450ms cubic-bezier(.2, .75, .25, 1) both;
+  animation-delay: calc(var(--sprite-index) * 60ms);
+}
+
+.logo-canvas.intro-active .burst-sprite {
+  animation: burst-open 350ms ease-out both;
+  animation-delay: calc(990ms + var(--sprite-index) * 70ms);
+}
+
+@keyframes key-land {
+  0% {
+    opacity: 0;
+    transform: translateY(-22%);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translateY(3%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes burst-open {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-canvas.intro-active .key-sprite,
+  .logo-canvas.intro-active .burst-sprite {
+    animation: none;
+  }
 }

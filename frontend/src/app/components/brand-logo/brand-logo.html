@@ -1,40 +1,51 @@
-<span
-  class="logo-canvas"
-  role="img"
-  aria-label="Type Battle"
-  [style.aspect-ratio]="canvas.width + ' / ' + canvas.height"
+<button
+  class="logo-replay"
+  type="button"
+  aria-label="Type Battle giriş animasyonunu yeniden oynat"
+  (click)="replayIntro()"
 >
-  @for (sprite of keySprites; track sprite.name) {
-    <img
-      class="key-sprite"
-      [src]="assetPath(sprite)"
-      [attr.width]="sprite.w"
-      [attr.height]="sprite.h"
-      [style.left.%]="sprite.x0 / canvas.width * 100"
-      [style.top.%]="sprite.y0 / canvas.height * 100"
-      [style.width.%]="sprite.w / canvas.width * 100"
-      decoding="async"
-      draggable="false"
-      alt=""
-    />
-  }
+  <span
+    class="logo-canvas"
+    [class.intro-active]="introActive"
+    role="img"
+    aria-label="Type Battle"
+    [style.aspect-ratio]="canvas.width + ' / ' + canvas.height"
+  >
+    @for (sprite of keySprites; track sprite.name; let index = $index) {
+      <img
+        class="key-sprite"
+        [src]="assetPath(sprite)"
+        [attr.width]="sprite.w"
+        [attr.height]="sprite.h"
+        [style.left.%]="sprite.x0 / canvas.width * 100"
+        [style.top.%]="sprite.y0 / canvas.height * 100"
+        [style.width.%]="sprite.w / canvas.width * 100"
+        [style.--sprite-index]="index"
+        decoding="async"
+        draggable="false"
+        alt=""
+      />
+    }
 
-  @for (group of burstGroups; track group.name) {
-    <span class="burst-group" aria-hidden="true">
-      @for (sprite of group.sprites; track sprite.name) {
-        <img
-          class="burst-sprite"
-          [src]="assetPath(sprite)"
-          [attr.width]="sprite.w"
-          [attr.height]="sprite.h"
-          [style.left.%]="sprite.x0 / canvas.width * 100"
-          [style.top.%]="sprite.y0 / canvas.height * 100"
-          [style.width.%]="sprite.w / canvas.width * 100"
-          decoding="async"
-          draggable="false"
-          alt=""
-        />
-      }
-    </span>
-  }
-</span>
+    @for (group of burstGroups; track group.name) {
+      <span class="burst-group" aria-hidden="true">
+        @for (sprite of group.sprites; track sprite.name; let index = $index) {
+          <img
+            class="burst-sprite"
+            [src]="assetPath(sprite)"
+            [attr.width]="sprite.w"
+            [attr.height]="sprite.h"
+            [style.left.%]="sprite.x0 / canvas.width * 100"
+            [style.top.%]="sprite.y0 / canvas.height * 100"
+            [style.width.%]="sprite.w / canvas.width * 100"
+            [style.transform-origin]="sprite.origin"
+            [style.--sprite-index]="index"
+            decoding="async"
+            draggable="false"
+            alt=""
+          />
+        }
+      </span>
+    }
+  </span>
+</button>
