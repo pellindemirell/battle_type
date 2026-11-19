@@ -326,6 +326,9 @@ public class TypingHub : Hub
             else
             {
                 player.Errors++;
+                var expectedKey = room.Text[player.Position];
+                player.MissedKeys[expectedKey] =
+                    player.MissedKeys.GetValueOrDefault(expectedKey) + 1;
             }
 
             progress = BuildProgress(room, now);
@@ -483,7 +486,10 @@ public class TypingHub : Hub
                 player.Keystrokes,
                 Math.Round((player.Position / 5.0) / elapsedMinutes),
                 CalculateAccuracy(player.Keystrokes, player.Errors),
-                player.FinishedAt is not null);
+                player.FinishedAt is not null)
+            {
+                MissedKeys = new Dictionary<char, int>(player.MissedKeys)
+            };
         }).ToArray();
 
         return new RaceResult(winnerId, players);

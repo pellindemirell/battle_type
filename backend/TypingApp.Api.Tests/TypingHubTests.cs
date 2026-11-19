@@ -73,6 +73,27 @@ public sealed class TypingHubTests
     }
 
     [Fact]
+    public async Task KeyPress_CountsMissedExpectedCharactersInResult()
+    {
+        var fixture = CreateRunningRoom("a");
+
+        await fixture.Hub.KeyPress(fixture.Room.Code, "x");
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(20));
+        await fixture.Hub.KeyPress(fixture.Room.Code, "a");
+
+        Assert.Equal(1, fixture.Player.MissedKeys['a']);
+        Assert.False(fixture.Player.MissedKeys.ContainsKey('x'));
+
+        var finishedEvent = Assert.Single(
+            fixture.Clients.Messages,
+            message => message.Method == "RaceFinished");
+        var result = Assert.IsType<RaceResult>(finishedEvent.Arguments[0]);
+        var playerResult = Assert.Single(result.Players);
+        Assert.Equal(1, playerResult.MissedKeys['a']);
+        Assert.False(playerResult.MissedKeys.ContainsKey('x'));
+    }
+
+    [Fact]
     public async Task OnDisconnectedAsync_FinishesRunningRaceAndAwardsRemainingPlayer()
     {
         var fixture = CreateRunningRoom("ab");

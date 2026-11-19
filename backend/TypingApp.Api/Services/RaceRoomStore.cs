@@ -60,6 +60,8 @@ public sealed class PlayerState
 
     public int Errors { get; set; }
 
+    public Dictionary<char, int> MissedKeys { get; } = [];
+
     public int Keystrokes { get; set; }
 
     public DateTimeOffset? LastKeyAt { get; set; }
@@ -88,7 +90,11 @@ public sealed record RacePlayerResult(
     int Keystrokes,
     double Wpm,
     double Accuracy,
-    bool Finished);
+    bool Finished)
+{
+    public IReadOnlyDictionary<char, int> MissedKeys { get; init; } =
+        new Dictionary<char, int>();
+}
 
 public sealed record RaceResult(
     string WinnerId,
