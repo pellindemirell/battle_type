@@ -1,21 +1,16 @@
 services:
-  backend:
+  app:
     build:
-      context: ./backend/TypingApp.Api
+      context: .
+      dockerfile: backend/TypingApp.Api/Dockerfile
     ports:
-      - "5027:8080"
+      - "5027:5027"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Data Source=/data/typingapp.db
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     volumes:
-      - db-data:/app
-
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "4200:80"
-    depends_on:
-      - backend
+      - db-data:/data
 
 volumes:
   db-data:
