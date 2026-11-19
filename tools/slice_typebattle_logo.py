@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split the ten keycaps in the supplied transparent Type Battle logo."""
+"""Split the ten keycaps and six burst strokes in the Type Battle logo."""
 
 from __future__ import annotations
 
@@ -16,21 +16,27 @@ SOURCE = ROOT / "design" / "typebattle-logo-dark-bg_4x.png"
 OUTPUT = ROOT / "frontend" / "public" / "assets" / "brand"
 LAYOUT = OUTPUT / "sprites.json"
 
-EXPECTED_SIZE = (2720, 976)
+REFERENCE_SIZE = (2720, 976)
 EXPECTED_BOXES = {
     "type-t": (93, 129, 408, 478),
     "type-y": (411, 88, 720, 432),
     "type-p": (738, 130, 1041, 470),
     "type-e": (1046, 96, 1364, 447),
-    "battle-b": (738, 534, 1041, 874),
+    "battle-B": (738, 534, 1041, 874),
     "battle-a": (1057, 548, 1357, 884),
     "battle-t-1": (1381, 533, 1677, 867),
     "battle-t-2": (1695, 546, 1998, 886),
     "battle-l": (2019, 532, 2319, 868),
     "battle-e": (2339, 545, 2635, 879),
 }
-SPRITE_NAMES = list(EXPECTED_BOXES)
-LARGE_COMPONENTS = 10
+EXPECTED_BURST_GROUPS = {
+    "burst-a": (391, 495, 669, 773),
+    "burst-b": (1411, 187, 1689, 465),
+}
+KEY_SPRITE_NAMES = list(EXPECTED_BOXES)
+BURST_SPRITE_NAMES = [f"burst-{group}-{index}" for group in ("a", "b") for index in range(1, 4)]
+KEY_COMPONENTS = 10
+BURST_COMPONENTS = 6
 MIN_SIZE_GAP = 5
 
 
@@ -126,34 +132,56 @@ def connected_components(alpha: bytes, width: int, height: int) -> tuple[array, 
     return pixel_labels, list(components.values())
 
 
-def select_keycaps(components: list[Component]) -> list[Component]:
+def box_distance(first: tuple[float, float, float, float], second: tuple[float, float, float, float]) -> float:
+    dx = max(first[0] - second[2], second[0] - first[2], 0)
+    dy = max(first[1] - second[3], second[1] - first[3], 0)
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def scaled_box(box: tuple[int, int, int, int], scale: float) -> tuple[float, float, float, float]:
+    return tuple(value * scale for value in box)
+
+
+def separate_components(
+    components: list[Component],
+    scale: float,
+) -> tuple[list[Component], list[Component]]:
+    if len(components) != KEY_COMPONENTS + BURST_COMPONENTS:
+        raise RuntimeError(
+            f"Beklenen 16 alfa bağlı bileşen; {len(components)} bulundu."
+        )
+
     ranked = sorted(components, key=lambda item: item.area, reverse=True)
-    if len(ranked) < LARGE_COMPONENTS:
-        raise RuntimeError(
-            f"Beklenen 10 büyük bileşen; toplam {len(ranked)} bağlı bileşen bulundu."
-        )
+    keys = ranked[:KEY_COMPONENTS]
+    bursts = ranked[KEY_COMPONENTS:]
+    if keys[-1].area < bursts[0].area * MIN_SIZE_GAP:
+        raise RuntimeError("10 tuş bileşeni ile burst çizgileri alanla net ayrışmıyor.")
 
-    cutoff = ranked[LARGE_COMPONENTS - 1].area
-    large = [component for component in ranked if component.area >= cutoff]
-    next_area = ranked[LARGE_COMPONENTS].area if len(ranked) > LARGE_COMPONENTS else 0
+    normalized_key_areas = [component.area / (scale * scale) for component in keys]
+    normalized_burst_areas = [component.area / (scale * scale) for component in bursts]
     print(f"Alfa bağlı bileşen sayısı: {len(components)}")
-    print(f"Büyük bileşen sayısı: {len(large)} (alfa alanı eşiği: {cutoff})")
-    print(f"10. ve 11. büyük bileşen alan oranı: {cutoff / next_area if next_area else 'n/a'}")
+    print(
+        "Büyük bileşen sayısı: "
+        f"{len(keys)}; alan/s²: {min(normalized_key_areas):.1f}–{max(normalized_key_areas):.1f}"
+    )
+    print(
+        "Burst bileşen sayısı: "
+        f"{len(bursts)}; alan/s²: {min(normalized_burst_areas):.1f}–{max(normalized_burst_areas):.1f}"
+    )
 
-    if len(large) != LARGE_COMPONENTS:
-        raise RuntimeError(f"Beklenen tam 10 büyük bileşen; {len(large)} bulundu.")
-    if next_area and cutoff < next_area * MIN_SIZE_GAP:
-        raise RuntimeError(
-            "En büyük 10 bileşen diğer bileşenlerden yeterince ayrışmıyor; "
-            "sprite seçimi güvenilir değil."
-        )
+    if any(not 82_000 <= area <= 100_000 for area in normalized_key_areas):
+        raise RuntimeError("Tuş bileşeni alanı beklenen yaklaşık 91.000·s² aralığının dışında.")
+    if any(not 6_700 <= area <= 8_100 for area in normalized_burst_areas):
+        raise RuntimeError("Burst bileşeni alanı beklenen yaklaşık 7.100–7.700·s² aralığının dışında.")
 
-    for component in sorted(large, key=lambda item: (item.top, item.left)):
-        print(f"  bbox={component.box} area={component.area}")
-    return large
+    for kind, selected in (("key", keys), ("burst", bursts)):
+        for component in sorted(selected, key=lambda item: (item.top, item.left)):
+            normalized_area = component.area / (scale * scale)
+            print(f"  {kind} bbox={component.box} area/s²={normalized_area:.1f}")
+    return keys, bursts
 
 
-def order_sprites(components: list[Component], height: int) -> list[tuple[str, Component]]:
+def order_keycaps(components: list[Component], height: int) -> list[tuple[str, Component]]:
     midpoint = height / 2
     top_row = sorted(
         (component for component in components if (component.top + component.bottom) / 2 < midpoint),
@@ -168,47 +196,117 @@ def order_sprites(components: list[Component], height: int) -> list[tuple[str, C
             f"Beklenen satır dağılımı 4+6; bulunan dağılım {len(top_row)}+{len(bottom_row)}."
         )
     ordered = top_row + bottom_row
-    return list(zip(SPRITE_NAMES, ordered))
+    return list(zip(KEY_SPRITE_NAMES, ordered))
 
 
-def validate_boxes(sprites: list[tuple[str, Component]]) -> None:
+def group_bursts(
+    components: list[Component],
+    scale: float,
+) -> dict[str, list[Component]]:
+    regions = {
+        name: scaled_box(box, scale)
+        for name, box in EXPECTED_BURST_GROUPS.items()
+    }
+    groups = {name: [] for name in regions}
+    for component in components:
+        nearest = min(
+            regions,
+            key=lambda name: box_distance(component.box, regions[name]),
+        )
+        groups[nearest].append(component)
+
+    for name, group in groups.items():
+        if len(group) != 3:
+            raise RuntimeError(f"{name}: beklenen 3 burst çizgisi, {len(group)} bulundu.")
+        group.sort(key=lambda item: (item.top, item.left))
+        bounds = (
+            min(item.left for item in group),
+            min(item.top for item in group),
+            max(item.right for item in group),
+            max(item.bottom for item in group),
+        )
+        print(f"{name} bbox={bounds}")
+    return groups
+
+
+def validate_boxes(sprites: list[tuple[str, Component]], scale: float) -> None:
+    tolerance = max(6 * scale, 3)
     mismatches = []
     for name, component in sprites:
-        expected = EXPECTED_BOXES[name]
+        expected = scaled_box(EXPECTED_BOXES[name], scale)
         actual = component.box
-        if any(abs(actual_value - expected_value) > 6 for actual_value, expected_value in zip(actual, expected)):
-            mismatches.append(f"{name}: actual={actual}, expected={expected}")
+        if any(
+            abs(actual_value - expected_value) > tolerance
+            for actual_value, expected_value in zip(actual, expected)
+        ):
+            mismatches.append(
+                f"{name}: actual={actual}, expected={tuple(round(value, 2) for value in expected)}"
+            )
     if mismatches:
-        raise RuntimeError("Beklenen bbox'lardan 6 px'den fazla sapma:\n" + "\n".join(mismatches))
-
-
-def validate_source(image: Image.Image, sprites: list[tuple[str, Component]]) -> None:
-    errors = []
-    if image.size != EXPECTED_SIZE:
-        errors.append(
-            f"Beklenen tuval {EXPECTED_SIZE[0]}x{EXPECTED_SIZE[1]}, "
-            f"kaynak {image.width}x{image.height}."
+        raise RuntimeError(
+            f"Beklenen bbox'lardan {tolerance:.2f} px'den fazla sapma:\n"
+            + "\n".join(mismatches)
         )
-    try:
-        validate_boxes(sprites)
-    except RuntimeError as error:
-        errors.append(str(error))
-    if errors:
-        raise RuntimeError("\n".join(errors))
+
+
+def burst_origin(
+    component: Component,
+    keys: list[tuple[str, Component]],
+) -> tuple[str, str]:
+    nearest_key, _ = min(
+        ((name, key) for name, key in keys),
+        key=lambda item: box_distance(component.box, item[1].box),
+    )
+    key_box = next(key.box for name, key in keys if name == nearest_key)
+    corners = (
+        (component.left, component.top, "0% 0%"),
+        (component.right, component.top, "100% 0%"),
+        (component.left, component.bottom, "0% 100%"),
+        (component.right, component.bottom, "100% 100%"),
+    )
+
+    def point_distance(point: tuple[int, int]) -> float:
+        x, y = point
+        dx = max(key_box[0] - x, x - key_box[2], 0)
+        dy = max(key_box[1] - y, y - key_box[3], 0)
+        return (dx * dx + dy * dy) ** 0.5
+
+    _, _, origin = min(corners, key=lambda corner: point_distance(corner[:2]))
+    return origin, nearest_key
+
+
+def validate_source(
+    image: Image.Image,
+    sprites: list[tuple[str, Component]],
+    scale: float,
+) -> None:
+    expected_ratio = REFERENCE_SIZE[0] / REFERENCE_SIZE[1]
+    actual_ratio = image.width / image.height
+    if abs(actual_ratio - expected_ratio) >= 0.005:
+        raise RuntimeError(
+            f"Kaynak oranı {actual_ratio:.6f}, beklenen {expected_ratio:.6f}; tolerans 0.005."
+        )
+    validate_boxes(sprites, scale)
 
 
 def write_sprites(
     image: Image.Image,
     pixel_labels: array,
-    sprites: list[tuple[str, Component]],
+    keys: list[tuple[str, Component]],
+    burst_groups: dict[str, list[Component]],
 ) -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     layout = {
-        "canvas": {"width": image.width, "height": image.height},
+        "canvas": {"width": image.width, "height": image.height, "scale": image.width / REFERENCE_SIZE[0]},
         "sprites": [],
     }
+    sprites = [(name, component, "key") for name, component in keys]
+    for group_name in ("burst-a", "burst-b"):
+        for index, component in enumerate(burst_groups[group_name], start=1):
+            name = f"{group_name}-{index}"
+            sprites.append((name, component, "burst"))
 
-    for name, component in sprites:
+    for name, component, kind in sprites:
         left, top, right, bottom = component.box
         cropped = image.crop(component.box)
         cropped_pixels = cropped.load()
@@ -219,16 +317,18 @@ def write_sprites(
 
         filename = f"{name}.png"
         cropped.save(OUTPUT / filename, format="PNG", optimize=True, compress_level=9)
-        layout["sprites"].append(
-            {
-                "name": name,
-                "file": filename,
-                "x": left,
-                "y": top,
-                "w": right - left,
-                "h": bottom - top,
-            }
-        )
+        sprite = {
+            "name": name,
+            "kind": kind,
+            "file": filename,
+            "x0": left,
+            "y0": top,
+            "w": right - left,
+            "h": bottom - top,
+        }
+        if kind == "burst":
+            sprite["origin"], sprite["nearestKey"] = burst_origin(component, keys)
+        layout["sprites"].append(sprite)
 
     LAYOUT.write_text(json.dumps(layout, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     total_bytes = sum((OUTPUT / item["file"]).stat().st_size for item in layout["sprites"])
@@ -241,12 +341,31 @@ def main() -> None:
         raise RuntimeError(f"Kaynak dosya bulunamadı: {SOURCE}")
 
     image = Image.open(SOURCE).convert("RGBA")
+    scale = image.width / REFERENCE_SIZE[0]
+    ratio = image.width / image.height
+    expected_ratio = REFERENCE_SIZE[0] / REFERENCE_SIZE[1]
+    print(f"Kaynak tuval: {image.width}x{image.height}; s={scale:.8f}; oran={ratio:.8f}")
+    if abs(ratio - expected_ratio) >= 0.005:
+        raise RuntimeError(
+            f"Kaynak oranı {ratio:.6f}, beklenen {expected_ratio:.6f}; tolerans 0.005."
+        )
+
     alpha = image.getchannel("A").tobytes()
     pixel_labels, components = connected_components(alpha, image.width, image.height)
-    keycaps = select_keycaps(components)
-    sprites = order_sprites(keycaps, image.height)
-    validate_source(image, sprites)
-    write_sprites(image, pixel_labels, sprites)
+    keycaps, burst_lines = separate_components(components, scale)
+    keys = order_keycaps(keycaps, image.height)
+    bursts = group_bursts(burst_lines, scale)
+    validate_source(image, keys, scale)
+    if [name for name, _ in keys] != KEY_SPRITE_NAMES:
+        raise RuntimeError("Tuş bileşenleri beklenen sıra ve adlarla eşleşmiyor.")
+    actual_burst_names = [
+        f"{group_name}-{index}"
+        for group_name, group in bursts.items()
+        for index, _ in enumerate(group, start=1)
+    ]
+    if actual_burst_names != BURST_SPRITE_NAMES:
+        raise RuntimeError("Burst sprite adları beklenen sırada değil.")
+    write_sprites(image, pixel_labels, keys, bursts)
 
 
 if __name__ == "__main__":
