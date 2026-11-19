@@ -5,13 +5,21 @@ namespace TypingApp.Api.Hubs;
 
 public class TypingHub : Hub
 {
+    private static readonly TimeSpan MinimumKeyPressInterval =
+        TimeSpan.FromMilliseconds(20);
+
     private readonly RaceRoomStore _rooms;
     private readonly WordSelector _wordSelector;
+    private readonly TimeProvider _timeProvider;
 
-    public TypingHub(RaceRoomStore rooms, WordSelector wordSelector)
+    public TypingHub(
+        RaceRoomStore rooms,
+        WordSelector wordSelector,
+        TimeProvider timeProvider)
     {
         _rooms = rooms;
         _wordSelector = wordSelector;
+        _timeProvider = timeProvider;
     }
 
     public async Task<string> CreateRoom(
@@ -271,11 +279,12 @@ public class TypingHub : Hub
     {
         var room = GetRoom(roomCode);
         if (string.IsNullOrEmpty(key) || key.Length != 1)
-            throw new HubException("Tek seferde bir tuş gönderilmelidir.");
+            return;
 
         RacePlayerProgress[] progress;
         RaceResult? result = null;
-        var now = DateTime.UtcNow;
+        var timestamp = _timeProvider.GetUtcNow();
+        var now = timestamp.UtcDateTime;
 
         lock (room.Lock)
         {
@@ -288,6 +297,13 @@ public class TypingHub : Hub
             if (player.FinishedAt is not null)
                 return;
 
+            if (player.LastKeyAt is { } lastKeyAt &&
+                timestamp - lastKeyAt < MinimumKeyPressInterval)
+            {
+                return;
+            }
+
+            player.LastKeyAt = timestamp;
             player.Keystrokes++;
 
             if (string.Equals(

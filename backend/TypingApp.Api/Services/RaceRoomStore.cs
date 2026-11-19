@@ -60,6 +60,8 @@ public sealed class PlayerState
 
     public int Keystrokes { get; set; }
 
+    public DateTimeOffset? LastKeyAt { get; set; }
+
     public DateTime? FinishedAt { get; set; }
 
     public bool Ready { get; set; }
