@@ -36,6 +36,15 @@ h1, h2, h3 {
   font-weight: 700;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .race-page .reconnecting-warning {
   color: #eee8ff;
   background: rgba(46, 34, 73, .78);

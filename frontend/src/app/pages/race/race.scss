@@ -537,8 +537,18 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .difficulty-card:hover {
+    --ty: 0px;
+    --lo: 6px;
+    --rx: 0deg;
+    --ry: 0deg;
+  }
+
   .keycap-face,
-  .selected-badge {
+  .selected-badge,
+  .difficulty-pip,
+  .typing-caret {
     transition: none;
+    animation: none;
   }
 }

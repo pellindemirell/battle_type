@@ -11,18 +11,28 @@
 
     <section class="room-options" aria-label="Yarış ayarları">
       <h2>Yarış ayarları</h2>
-      <div class="difficulty-options" role="group" aria-label="Zorluk seviyesi">
+      <div
+        #difficultyRadioGroup
+        class="difficulty-options"
+        role="radiogroup"
+        aria-label="Zorluk seviyesi"
+      >
         <button
           *ngFor="let option of difficultyOptions"
           type="button"
           class="difficulty-card"
           [class.selected]="difficulty === option.value"
-          [attr.aria-pressed]="difficulty === option.value"
+          role="radio"
+          [attr.aria-checked]="difficulty === option.value"
+          [attr.tabindex]="difficulty === option.value ? 0 : -1"
           [style.--ac]="option.accent"
           [style.--lp]="option.selectedBase"
           (pointerenter)="startDifficultyPreview(option)"
-          (pointerleave)="stopDifficultyPreview(option)"
+          (pointerleave)="stopDifficultyPreview(option, $event)"
           (pointermove)="setDifficultyTilt($event)"
+          (focus)="startDifficultyPreview(option)"
+          (blur)="stopDifficultyPreview(option)"
+          (keydown)="onDifficultyKeydown($event, option)"
           (pointerleave)="resetDifficultyTilt($event)"
           (click)="difficulty = option.value"
         >
@@ -56,6 +66,9 @@
           </span>
         </button>
       </div>
+      <span class="visually-hidden" aria-live="polite" aria-atomic="true">
+        {{ selectedDifficultyAnnouncement }}
+      </span>
 
       <div class="room-option-selects">
         <label>

@@ -1,9 +1,11 @@
 import {
   ChangeDetectorRef,
   Component,
+  ElementRef,
   HostListener,
   OnDestroy,
   OnInit,
+  ViewChild,
   inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -53,6 +55,9 @@ export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
   private changeDetector = inject(ChangeDetectorRef);
   private typingEngine = inject(TypingEngine);
+  private readonly prefersReducedMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  @ViewChild('difficultyRadioGroup') private difficultyRadioGroup?: ElementRef<HTMLDivElement>;
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
   private difficultyTypingInterval?: ReturnType<typeof setInterval>;
@@ -145,6 +150,13 @@ export class Race implements OnInit, OnDestroy {
 
   get keystrokes(): number {
     return this.typingEngine.keystrokes;
+  }
+
+  get selectedDifficultyAnnouncement(): string {
+    const option = this.difficultyOptions.find(item => item.value === this.difficulty);
+    return option
+      ? `Seçili: ${option.label} · ${option.description}, ${option.specialCharacters}`
+      : '';
   }
 
   ngOnInit(): void {
@@ -384,6 +396,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   setDifficultyTilt(event: PointerEvent): void {
+    if (this.prefersReducedMotion) return;
     const card = event.currentTarget as HTMLElement;
     const bounds = card.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
@@ -401,6 +414,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   startDifficultyPreview(option: DifficultyOption): void {
+    if (this.prefersReducedMotion) return;
     this.clearDifficultyTypingInterval();
     this.activeDifficultyPreview = option.value;
     this.typedDifficultyExample = '';
@@ -416,11 +430,46 @@ export class Race implements OnInit, OnDestroy {
     }, 55);
   }
 
-  stopDifficultyPreview(option: DifficultyOption): void {
+  stopDifficultyPreview(option: DifficultyOption, event?: Event): void {
     if (this.activeDifficultyPreview !== option.value) return;
+    if (
+      event?.type === 'pointerleave' &&
+      event.currentTarget instanceof HTMLElement &&
+      event.currentTarget.matches(':focus')
+    ) {
+      return;
+    }
     this.clearDifficultyTypingInterval();
     this.activeDifficultyPreview = null;
     this.typedDifficultyExample = '';
+  }
+
+  onDifficultyKeydown(event: KeyboardEvent, option: DifficultyOption): void {
+    const direction = ['ArrowRight', 'ArrowDown'].includes(event.key)
+      ? 1
+      : ['ArrowLeft', 'ArrowUp'].includes(event.key)
+        ? -1
+        : 0;
+
+    if (direction) {
+      event.preventDefault();
+      const currentIndex = this.difficultyOptions.findIndex(item => item.value === option.value);
+      const nextIndex =
+        (currentIndex + direction + this.difficultyOptions.length) % this.difficultyOptions.length;
+      const nextOption = this.difficultyOptions[nextIndex];
+      this.difficulty = nextOption.value;
+      this.changeDetector.markForCheck();
+      this.difficultyRadioGroup?.nativeElement
+        .querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]
+        ?.focus();
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.difficulty = option.value;
+      this.changeDetector.markForCheck();
+    }
   }
 
   private clearWrongKeyTimer(): void {
