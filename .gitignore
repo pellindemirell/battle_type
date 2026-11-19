@@ -9,6 +9,7 @@ dist/
 **/node_modules/
 **/.angular/
 **/dist/
+backend/TypingApp.Api/wwwroot/
 
 # IDE and user-specific files
 .vs/
