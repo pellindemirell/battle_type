@@ -1,0 +1,42 @@
+# Build outputs and dependency caches
+bin/
+obj/
+**/bin/
+**/obj/
+node_modules/
+.angular/
+dist/
+**/node_modules/
+**/.angular/
+**/dist/
+
+# IDE and user-specific files
+.vs/
+*.user
+*.suo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+*.pem
+*.pfx
+*.key
+secrets.json
+
+# Local databases and test output
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+TestResults/
+
+# Operating system files
+Thumbs.db
+.DS_Store

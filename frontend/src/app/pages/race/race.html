@@ -1,0 +1,153 @@
+<div class="race-page">
+  <h1>⌨️ Hızlı Yazma Yarışı</h1>
+
+  <div class="setup" *ngIf="!targetText">
+    <div class="setup-group">
+      <input
+        type="text"
+        placeholder="Oyuncu adın"
+        [(ngModel)]="playerName"
+        maxlength="20"
+      />
+    </div>
+
+    <div class="setup-group">
+      <select [(ngModel)]="lessonId">
+        <option [value]="1">Ders 1 – F ve J</option>
+        <option [value]="2">Ders 2 – D ve K</option>
+        <option [value]="3">Ders 3 – S ve L</option>
+        <option [value]="4">Ders 4 – Ana Sıra Tekrar</option>
+      </select>
+      <button class="btn-primary" (click)="createRoom()">Oda Oluştur</button>
+    </div>
+
+    <div class="setup-group">
+      <input
+        type="text"
+        placeholder="Oda kodu (5 hane)"
+        [(ngModel)]="roomCode"
+        maxlength="5"
+        style="text-transform: uppercase"
+      />
+      <button class="btn-secondary" (click)="joinRoom()">Yarışmaya Katıl</button>
+    </div>
+  </div>
+
+  <p class="status-message" *ngIf="message">{{ message }}</p>
+
+  <div class="room-code-box" *ngIf="roomCode && !raceStarted && !raceFinished">
+    <span>Oda Kodu:</span>
+    <strong>{{ roomCode }}</strong>
+    <small>Bu kodu rakibine gönder</small>
+  </div>
+
+  <div class="ready-controls" *ngIf="targetText && !raceStarted && !raceFinished">
+    <p *ngIf="!opponentName">Rakibin odaya katılması bekleniyor.</p>
+    <p *ngIf="opponentName">
+      {{ opponentName }}:
+      {{ opponentReady ? 'Hazır' : 'Henüz hazır değil' }}
+    </p>
+    <button
+      class="btn-primary"
+      (click)="setReady()"
+      [disabled]="isReady || !opponentName || reconnecting"
+    >
+      {{ isReady ? 'Hazırsın, rakip bekleniyor…' : 'Hazırım' }}
+    </button>
+  </div>
+
+  <div class="countdown-overlay" *ngIf="countdown > 0">
+    <div class="countdown-number">{{ countdown }}</div>
+    <p>Hazır ol…</p>
+  </div>
+
+  <p class="caps-lock-warning" *ngIf="capsLockOn">Caps Lock açık</p>
+  <p class="reconnecting-warning" *ngIf="reconnecting">Yeniden bağlanıyor…</p>
+
+  <div class="race-content" *ngIf="targetText">
+    <div class="target-text-box">
+      <h2>Yazılacak Metin</h2>
+      <p class="target-text">
+        <span
+          *ngFor="let character of textCharacters; let i = index"
+          class="character"
+          [class.completed-text]="i < position"
+          [class.next-key]="i === position"
+          [class.wrong-key]="i === position && wrongKey !== null"
+        >
+          {{ character === ' ' ? '\u00a0' : character }}<span
+            class="wrong-key-badge"
+            *ngIf="i === position && wrongKey !== null"
+          >{{ wrongKey }}</span>
+        </span>
+      </p>
+    </div>
+
+    <p class="keyboard-hint" *ngIf="raceStarted && !raceFinished">
+      Klavyeden yazmaya başla · Hata: {{ errors }} · Tuş: {{ keystrokes }}
+    </p>
+
+    <div class="players">
+      <div class="player-card">
+        <h3>{{ playerName || 'Sen' }}</h3>
+        <div class="progress-bar-container">
+          <div class="progress-bar" [style.width.%]="myProgress"></div>
+        </div>
+        <span class="progress-label">%{{ myProgress | number:'1.0-0' }}</span>
+        <span class="error-label">Hata: {{ errors }}</span>
+      </div>
+
+      <div class="player-card opponent">
+        <h3>{{ opponentName || 'Rakip bekleniyor…' }}</h3>
+        <div class="progress-bar-container">
+          <div class="progress-bar" [style.width.%]="opponentProgress"></div>
+        </div>
+        <span class="progress-label">%{{ opponentProgress | number:'1.0-0' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="finish-screen" *ngIf="raceFinished && result">
+    <div class="trophy">🏆</div>
+    <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
+    <h2>Kazanan: {{ winner }}</h2>
+
+    <div class="results-table-wrapper">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Oyuncu</th>
+            <th>WPM</th>
+            <th>Doğruluk</th>
+            <th>Hata</th>
+            <th>Tamamladı</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let player of result.players"
+            [class.winner-row]="player.id === result.winnerId"
+          >
+            <td>
+              {{ player.name }}
+              <strong *ngIf="player.id === result.winnerId">Kazanan</strong>
+            </td>
+            <td>{{ player.wpm | number:'1.0-0' }}</td>
+            <td>%{{ player.accuracy | number:'1.0-0' }}</td>
+            <td>{{ player.errors }}</td>
+            <td>{{ player.finished ? 'Evet' : 'Hayır' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <button class="btn-primary" (click)="resetRace()">Tekrar Oyna</button>
+    <button
+      class="btn-secondary"
+      (click)="requestRematch()"
+      [disabled]="rematchRequested || reconnecting"
+    >
+      {{ rematchRequested ? 'Rakip bekleniyor…' : 'Rövanş iste' }}
+    </button>
+  </div>
+</div>

@@ -1,0 +1,317 @@
+import {
+  ChangeDetectorRef,
+  Component,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  inject
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import {
+  RacePlayerProgress,
+  RaceReadyStatus,
+  RaceResult
+} from '../../models/race';
+import { RaceService } from '../../services/race.service';
+
+interface RoomCreatedMessage {
+  roomCode: string;
+  text: string;
+}
+
+interface PlayerJoinedMessage {
+  text: string;
+  players: RacePlayerProgress[];
+}
+
+@Component({
+  selector: 'app-race',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './race.html',
+  styleUrl: './race.scss'
+})
+export class Race implements OnInit, OnDestroy {
+  private raceService = inject(RaceService);
+  private changeDetector = inject(ChangeDetectorRef);
+  private unsubscribeHandlers: Array<() => void> = [];
+  private wrongKeyTimer?: ReturnType<typeof setTimeout>;
+  private reconnecting = false;
+
+  playerName = '';
+  roomCode = '';
+  lessonId = 1;
+  position = 0;
+  errors = 0;
+  keystrokes = 0;
+  targetText = '';
+  wrongKey: string | null = null;
+  capsLockOn = false;
+  opponentName = '';
+  myProgress = 0;
+  opponentProgress = 0;
+  countdown = 0;
+  isReady = false;
+  opponentReady = false;
+  rematchRequested = false;
+  raceStarted = false;
+  raceFinished = false;
+  winner = '';
+  isWinner = false;
+  result: RaceResult | null = null;
+  message = '';
+
+  ngOnInit(): void {
+    this.unsubscribeHandlers.push(
+      this.raceService.on('RoomCreated', (data: RoomCreatedMessage) => {
+        this.roomCode = data.roomCode;
+        this.targetText = data.text;
+        this.message = 'Rakibin bekleniyor.';
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('PlayerJoined', (data: PlayerJoinedMessage) => {
+        this.targetText = data.text;
+        this.updatePlayers(data.players);
+        this.message = 'Rakip katıldı.';
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RaceCountdown', (value: number) => {
+        this.countdown = value;
+        this.isReady = false;
+        this.opponentReady = false;
+        this.raceFinished = false;
+        this.raceStarted = false;
+        this.result = null;
+        this.winner = '';
+        this.isWinner = false;
+        this.position = 0;
+        this.errors = 0;
+        this.keystrokes = 0;
+        this.myProgress = 0;
+        this.opponentProgress = 0;
+        this.wrongKey = null;
+        this.rematchRequested = false;
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('ReadyStatus', (status: RaceReadyStatus) => {
+        const connectionId = this.raceService.connectionId;
+        const me = status.players.find((player) => player.id === connectionId);
+        const opponent = status.players.find((player) => player.id !== connectionId);
+        this.isReady = me?.ready ?? false;
+        this.opponentReady = opponent?.ready ?? false;
+        this.opponentName = opponent?.name ?? this.opponentName;
+
+        if (status.phase === 'countdown') {
+          this.raceFinished = false;
+          this.result = null;
+          this.rematchRequested = false;
+        }
+
+        if (status.phase === 'finished')
+          this.raceStarted = false;
+
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RaceStarted', () => {
+        this.raceStarted = true;
+        this.countdown = 0;
+        this.isReady = false;
+        this.opponentReady = false;
+        this.message = 'Yarış başladı! Klavyeden yazmaya başla.';
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('ProgressUpdated', (players: RacePlayerProgress[]) => {
+        this.updatePlayers(players);
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RaceFinished', (result: RaceResult) => {
+        this.result = result;
+        this.raceFinished = true;
+        this.raceStarted = false;
+        this.isReady = false;
+        this.opponentReady = false;
+        this.rematchRequested = false;
+        this.winner =
+          result.players.find((player) => player.id === result.winnerId)?.name
+          ?? 'Bilinmeyen oyuncu';
+        this.isWinner = result.winnerId === this.raceService.connectionId;
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('PlayerDisconnected', (data: string) => {
+        this.message = data;
+        this.opponentReady = false;
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.onreconnecting(() => {
+        this.reconnecting = true;
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.onreconnected(() => {
+        this.reconnecting = false;
+        this.changeDetector.markForCheck();
+      })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+    this.clearWrongKeyTimer();
+  }
+
+  async createRoom(): Promise<void> {
+    if (!this.playerName.trim()) {
+      this.message = 'Oyuncu adını gir.';
+      return;
+    }
+
+    try {
+      await this.raceService.createRoom(this.lessonId, this.playerName);
+    } catch (err: any) {
+      this.message = 'Oda oluşturulamadı: ' + (err?.message ?? err);
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async joinRoom(): Promise<void> {
+    if (!this.playerName.trim() || !this.roomCode.trim()) {
+      this.message = 'Oyuncu adı ve oda kodu gerekli.';
+      return;
+    }
+
+    try {
+      await this.raceService.joinRoom(this.roomCode, this.playerName);
+    } catch (err: any) {
+      this.message = 'Odaya katılınamadı: ' + (err?.message ?? err);
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async setReady(): Promise<void> {
+    if (this.isReady || this.reconnecting) return;
+    this.isReady = true;
+    try {
+      await this.raceService.setReady(this.roomCode);
+    } catch (err: any) {
+      this.isReady = false;
+      this.message = 'Hazır durumu gönderilemedi: ' + (err?.message ?? err);
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async requestRematch(): Promise<void> {
+    if (this.rematchRequested || this.reconnecting) return;
+    this.rematchRequested = true;
+    try {
+      await this.raceService.rematch(this.roomCode);
+    } catch (err: any) {
+      this.rematchRequested = false;
+      this.message = 'Rövanş isteği gönderilemedi: ' + (err?.message ?? err);
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    const capsLockOn = event.getModifierState('CapsLock');
+    if (capsLockOn !== this.capsLockOn) {
+      this.capsLockOn = capsLockOn;
+      this.changeDetector.markForCheck();
+    }
+
+    if (!this.raceStarted || this.raceFinished)
+      return;
+
+    if (
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      event.key.length !== 1 ||
+      this.reconnecting
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    if (this.position >= this.targetText.length)
+      return;
+
+    const key = event.key;
+    if (key === this.targetText[this.position]) {
+      this.position++;
+      this.wrongKey = null;
+      this.clearWrongKeyTimer();
+    } else {
+      this.errors++;
+      this.wrongKey = key === ' ' ? '␣' : key;
+      this.clearWrongKeyTimer();
+      this.wrongKeyTimer = setTimeout(() => {
+        this.wrongKey = null;
+        this.wrongKeyTimer = undefined;
+        this.changeDetector.markForCheck();
+      }, 400);
+    }
+
+    this.keystrokes++;
+    this.myProgress = this.position * 100 / this.targetText.length;
+    this.changeDetector.markForCheck();
+
+    void this.raceService.keyPress(this.roomCode, key).catch((err: unknown) => {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      this.message = 'Tuş gönderilemedi: ' + errorMessage;
+      this.changeDetector.markForCheck();
+    });
+  }
+
+  resetRace(): void {
+    this.clearWrongKeyTimer();
+    this.roomCode = '';
+    this.position = 0;
+    this.errors = 0;
+    this.keystrokes = 0;
+    this.targetText = '';
+    this.wrongKey = null;
+    this.opponentName = '';
+    this.myProgress = 0;
+    this.opponentProgress = 0;
+    this.countdown = 0;
+    this.isReady = false;
+    this.opponentReady = false;
+    this.rematchRequested = false;
+    this.raceStarted = false;
+    this.raceFinished = false;
+    this.winner = '';
+    this.isWinner = false;
+    this.result = null;
+    this.message = '';
+  }
+
+  get textCharacters(): string[] {
+    return this.targetText.split('');
+  }
+
+  private clearWrongKeyTimer(): void {
+    if (this.wrongKeyTimer) {
+      clearTimeout(this.wrongKeyTimer);
+      this.wrongKeyTimer = undefined;
+    }
+  }
+
+  private updatePlayers(players: RacePlayerProgress[]): void {
+    const connectionId = this.raceService.connectionId;
+    const me = players.find((player) => player.id === connectionId);
+    const opponent = players.find((player) => player.id !== connectionId);
+
+    if (me) {
+      this.position = me.position;
+      this.errors = me.errors;
+      this.keystrokes = me.keystrokes;
+      this.myProgress = me.progress;
+    }
+
+    if (opponent) {
+      this.opponentName = opponent.name;
+      this.opponentProgress = opponent.progress;
+    }
+  }
+}

@@ -1,0 +1,37 @@
+<div class="lesson-page">
+  <header class="page-header">
+    <h1>⌨️ Yazma Dersleri</h1>
+    <p class="subtitle">Parmak yerleşiminizi öğrenin, hızınızı artırın</p>
+    <a routerLink="/race" class="race-btn">🏁 Yarışmaya Git</a>
+  </header>
+
+  <div class="loading" *ngIf="loading">
+    <p>Dersler yükleniyor…</p>
+  </div>
+
+  <div class="error-box" *ngIf="error">
+    <p>⚠️ {{ error }}</p>
+  </div>
+
+  <div class="lesson-grid" *ngIf="!loading && !error">
+    <div class="lesson-card" *ngFor="let lesson of lessons; let i = index">
+      <div class="lesson-number">{{ i + 1 }}</div>
+      <div class="lesson-info">
+        <h2>{{ lesson.title }}</h2>
+        <p class="category">📂 {{ lesson.category }}</p>
+        <p class="new-keys" *ngIf="lesson.newKeys">
+          🎯 Yeni tuşlar: <strong>{{ lesson.newKeys }}</strong>
+        </p>
+        <div class="lesson-meta">
+          <span class="badge wpm">{{ lesson.targetWpm }} WPM</span>
+          <span class="badge accuracy">%{{ lesson.minAccuracy }} Doğruluk</span>
+          <span class="badge difficulty">{{ lesson.difficulty }}</span>
+        </div>
+        <div class="lesson-preview">
+          <code>{{ lesson.text }}</code>
+        </div>
+      </div>
+      <a [routerLink]="['/race']" class="start-btn">Yarış ›</a>
+    </div>
+  </div>
+</div>

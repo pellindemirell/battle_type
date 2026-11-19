@@ -1,0 +1,89 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f4f7fb;
+  color: #1a1a2e;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  line-height: 1.2;
+}
+
+.race-page .ready-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 20px auto;
+  text-align: center;
+}
+
+.race-page .caps-lock-warning,
+.race-page .reconnecting-warning {
+  width: fit-content;
+  margin: 12px auto;
+  padding: 8px 14px;
+  color: #7a2e00;
+  background: #fff0bd;
+  border: 1px solid #f9a825;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.race-page .reconnecting-warning {
+  color: #333;
+  background: #f0f4ff;
+  border-color: #9ab4e8;
+}
+
+.race-page .character {
+  position: relative;
+  display: inline-block;
+  text-align: center;
+}
+
+.race-page .wrong-key-badge {
+  position: absolute;
+  z-index: 1;
+  top: -1.3em;
+  left: 50%;
+  padding: 0 5px;
+  transform: translateX(-50%);
+  color: #fff;
+  background: #e5484d;
+  border-radius: 4px;
+  font-size: 0.6em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+@keyframes shake {
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes blink {
+  50% { outline-color: transparent; }
+}
+
+.race-page .next-key {
+  animation: blink 1s infinite;
+}
+
+.race-page .wrong-key {
+  animation: shake 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .race-page .character,
+  .race-page .character.wrong-key,
+  .race-page .character.next-key {
+    animation: none;
+  }
+}

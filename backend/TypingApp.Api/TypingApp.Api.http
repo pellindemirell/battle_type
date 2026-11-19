@@ -1,0 +1,6 @@
+@TypingApp.Api_HostAddress = http://localhost:5027
+
+GET {{TypingApp.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
