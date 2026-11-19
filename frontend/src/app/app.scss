@@ -31,11 +31,10 @@ button {
 }
 
 .brand-header {
-  position: absolute;
-  z-index: 1;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+  margin-bottom: 1.5rem;
 }
 
 .ambient-background {

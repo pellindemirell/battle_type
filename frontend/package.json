@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve:ssr:typing-app-ui": "node dist/typing-app-ui/server/server.mjs"
+    "serve:ssr:typing-app-ui": "node dist/typing-app-ui/server/server.mjs",
+    "test:logo-layout": "node scripts/verify-logo-layout.mjs"
   },
   "private": true,
   "packageManager": "npm@11.13.0",
@@ -32,6 +33,7 @@
     "@types/express": "^5.0.1",
     "@types/node": "^22.12.0",
     "jsdom": "^31.0.0",
+    "playwright": "^1.65.1",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",
     "vitest": "^5.0.0"
