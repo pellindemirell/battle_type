@@ -29,6 +29,7 @@
 
 .key-sprite {
   pointer-events: auto;
+  translate: 0 0;
 }
 
 .burst-group,
@@ -44,6 +45,14 @@
 .logo-canvas.intro-active .burst-sprite {
   animation: burst-open 350ms ease-out both;
   animation-delay: calc(990ms + var(--sprite-index) * 70ms);
+}
+
+.logo-canvas.intro-active .key-sprite.bouncing {
+  animation-name: key-land, key-bounce;
+  animation-duration: 450ms, 550ms;
+  animation-timing-function: cubic-bezier(.2, .75, .25, 1), cubic-bezier(.3, .7, .35, 1);
+  animation-delay: calc(var(--sprite-index) * 60ms), 0ms;
+  animation-fill-mode: both, none;
 }
 
 @keyframes key-land {
@@ -75,9 +84,32 @@
   }
 }
 
+.key-sprite.bouncing {
+  animation: key-bounce 550ms cubic-bezier(.3, .7, .35, 1);
+}
+
+@keyframes key-bounce {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  35% {
+    translate: 0 -10%;
+  }
+
+  68% {
+    translate: 0 2%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .logo-canvas.intro-active .key-sprite,
   .logo-canvas.intro-active .burst-sprite {
+    animation: none;
+  }
+
+  .key-sprite.bouncing {
     animation: none;
   }
 }

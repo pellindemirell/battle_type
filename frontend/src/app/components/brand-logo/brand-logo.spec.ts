@@ -27,4 +27,33 @@ describe('BrandLogo', () => {
       expect(burst.querySelectorAll('.burst-sprite')).toHaveLength(3);
     });
   });
+
+  it('bounces only the key receiving a mouse pointer', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const keys = Array.from(element.querySelectorAll('.key-sprite'));
+
+    keys[1].dispatchEvent(pointerEvent('pointerenter', 'mouse'));
+    fixture.detectChanges();
+
+    expect(keys.map(key => key.classList.contains('bouncing')))
+      .toEqual([false, true, false, false, false, false, false, false, false, false]);
+    expect(element.querySelectorAll('.burst-sprite.bouncing')).toHaveLength(0);
+  });
+
+  it('restarts the bounce for touch input on the selected key', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const keys = Array.from(element.querySelectorAll('.key-sprite'));
+
+    keys[2].dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    fixture.detectChanges();
+    expect(keys[2].classList.contains('bouncing')).toBe(true);
+    expect(keys.filter((key, index) => index !== 2 && key.classList.contains('bouncing')))
+      .toHaveLength(0);
+  });
 });
+
+function pointerEvent(type: string, pointerType: string): Event {
+  const event = new Event(type);
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  return event;
+}

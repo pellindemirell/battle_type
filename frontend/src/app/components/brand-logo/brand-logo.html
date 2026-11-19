@@ -14,6 +14,7 @@
     @for (sprite of keySprites; track sprite.name; let index = $index) {
       <img
         class="key-sprite"
+        [class.bouncing]="bouncingSprites.has(sprite.name)"
         [src]="assetPath(sprite)"
         [attr.width]="sprite.w"
         [attr.height]="sprite.h"
@@ -24,6 +25,8 @@
         decoding="async"
         draggable="false"
         alt=""
+        (pointerenter)="onPointerEnter(sprite.name)"
+        (pointerdown)="onPointerDown(sprite.name, $event)"
       />
     }
 
@@ -43,6 +46,7 @@
             decoding="async"
             draggable="false"
             alt=""
+            (animationend)="onBurstAnimationEnd($event, index)"
           />
         }
       </span>
