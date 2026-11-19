@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.SignalR;
 using TypingApp.Api.Services;
 
@@ -28,8 +29,7 @@ public class TypingHub : Hub
         string? characterMode,
         string? playerName)
     {
-        if (string.IsNullOrWhiteSpace(playerName))
-            throw new HubException("Oyuncu adı gerekli.");
+        var normalizedPlayerName = NormalizePlayerName(playerName);
 
         RoomSettings settings;
         try
@@ -44,7 +44,6 @@ public class TypingHub : Hub
             throw new HubException(error.Message);
         }
 
-        var normalizedPlayerName = playerName.Trim();
         var text = _wordSelector.BuildText(
             settings.Level,
             settings.WordCount,
@@ -86,11 +85,8 @@ public class TypingHub : Hub
     public async Task JoinRoom(string? roomCode, string playerName)
     {
         var room = GetRoom(roomCode);
-        if (string.IsNullOrWhiteSpace(playerName))
-            throw new HubException("Oyuncu adı gerekli.");
-
         var connectionId = Context.ConnectionId;
-        var normalizedPlayerName = playerName.Trim();
+        var normalizedPlayerName = NormalizePlayerName(playerName);
         RacePlayerProgress[] progress;
 
         lock (room.Lock)
@@ -436,6 +432,24 @@ public class TypingHub : Hub
         }
 
         return room;
+    }
+
+    private static string NormalizePlayerName(string? playerName)
+    {
+        var normalizedPlayerName = playerName?.Trim();
+        if (string.IsNullOrEmpty(normalizedPlayerName))
+            throw new HubException("Oyuncu adı gerekli.");
+
+        var characters = normalizedPlayerName.EnumerateRunes().ToArray();
+        if (characters.Length > 15 ||
+            characters.Any(character =>
+                !Rune.IsLetter(character) && character.Value != ' '))
+        {
+            throw new HubException(
+                "Oyuncu adı en fazla 15 karakter olabilir ve yalnızca harf ile boşluk içerebilir.");
+        }
+
+        return normalizedPlayerName;
     }
 
     private static RacePlayerProgress[] BuildProgress(

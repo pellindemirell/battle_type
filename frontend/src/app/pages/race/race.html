@@ -4,8 +4,11 @@
       <input
         type="text"
         placeholder="Oyuncu adın"
-        [(ngModel)]="playerName"
-        maxlength="20"
+        aria-label="Oyuncu adı"
+        [ngModel]="playerName"
+        (ngModelChange)="onPlayerNameChange($event)"
+        maxlength="15"
+        autocomplete="nickname"
       />
     </div>
 
@@ -155,23 +158,30 @@
   <p class="reconnecting-warning" *ngIf="reconnecting">Yeniden bağlanıyor…</p>
 
   <div class="race-content" *ngIf="targetText">
-    <div class="target-text-box">
+    <div class="target-text-box" *ngIf="opponentName; else waitingForOpponent">
       <h2>Yazılacak Metin</h2>
       <p class="target-text">
-        <span
-          *ngFor="let character of textCharacters; let i = index"
-          class="character"
-          [class.completed-text]="i < position"
-          [class.next-key]="i === position"
-          [class.wrong-key]="i === position && wrongKey !== null"
-        >
-          {{ character === ' ' ? '\u00a0' : character }}<span
-            class="wrong-key-badge"
-            *ngIf="i === position && wrongKey !== null"
-          >{{ wrongKey }}</span>
+        <span *ngFor="let word of targetWords" class="target-word">
+          <span
+            *ngFor="let character of word.characters"
+            class="character"
+            [class.completed-text]="character.index < position"
+            [class.next-key]="character.index === position"
+            [class.wrong-key]="character.index === position && wrongKey !== null"
+          >{{ character.value === ' ' ? '\u00a0' : character.value }}<span
+              class="wrong-key-badge"
+              *ngIf="character.index === position && wrongKey !== null"
+            >{{ wrongKey }}</span>
+          </span>
         </span>
       </p>
     </div>
+    <ng-template #waitingForOpponent>
+      <div class="target-text-box waiting-text" role="status">
+        <h2>Yazılacak Metin</h2>
+        <p>Rakibin katıldığında yazacağın metin burada gösterilecek! </p>
+      </div>
+    </ng-template>
 
     <p class="keyboard-hint" *ngIf="raceStarted && !raceFinished">
       Klavyeden yazmaya başla · Hata: {{ errors }} · Tuş: {{ keystrokes }}

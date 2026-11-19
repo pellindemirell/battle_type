@@ -12,6 +12,7 @@ describe('Race', () => {
     onreconnecting: ReturnType<typeof vi.fn>;
     onreconnected: ReturnType<typeof vi.fn>;
     createRoom: ReturnType<typeof vi.fn>;
+    joinRoom: ReturnType<typeof vi.fn>;
     keyPress: ReturnType<typeof vi.fn>;
     setReady: ReturnType<typeof vi.fn>;
     rematch: ReturnType<typeof vi.fn>;
@@ -30,6 +31,7 @@ describe('Race', () => {
       onreconnecting: vi.fn(() => () => {}),
       onreconnected: vi.fn(() => () => {}),
       createRoom: vi.fn().mockResolvedValue('ABCDE'),
+      joinRoom: vi.fn().mockResolvedValue(undefined),
       keyPress: vi.fn().mockResolvedValue(undefined),
       setReady: vi.fn().mockResolvedValue(undefined),
       rematch: vi.fn().mockResolvedValue(undefined)
@@ -49,6 +51,7 @@ describe('Race', () => {
     component.raceStarted = true;
     component.roomCode = 'ABCDE';
     component.targetText = 'cat';
+    component.opponentName = 'Opponent';
     const event = new KeyboardEvent('keydown', {
       key: 'x',
       cancelable: true
@@ -111,6 +114,41 @@ describe('Race', () => {
     );
   });
 
+  it('filters the player name to letters and spaces and limits it to 15 characters', () => {
+    const input = fixture.nativeElement.querySelector(
+      'input[placeholder="Oyuncu adın"]'
+    ) as HTMLInputElement;
+
+    input.value = 'Çağrı 12! Yılmaz';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(component.playerName).toBe('Çağrı  Yılmaz');
+    expect(input.maxLength).toBe(15);
+
+    input.value = 'abcdefghijklmnop';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(component.playerName).toBe('abcdefghijklmno');
+  });
+
+  it('sanitizes the player name before creating or joining a room', async () => {
+    component.playerName = 'Player123!';
+    await component.createRoom();
+    component.roomCode = 'ABCDE';
+    component.playerName = 'Çağrı 42!';
+    await component.joinRoom();
+
+    expect(raceService.createRoom).toHaveBeenCalledWith(
+      'easy',
+      30,
+      'full',
+      'Player'
+    );
+    expect(raceService.joinRoom).toHaveBeenCalledWith('ABCDE', 'Çağrı');
+  });
+
   it('shows the server-provided settings in the room', () => {
     component.roomSettings = {
       difficulty: 'expert',
@@ -124,6 +162,33 @@ describe('Race', () => {
     expect(settings.textContent).toContain('Uzman');
     expect(settings.textContent).toContain('45 kelime');
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
+  });
+
+  it('hides the text until an opponent joins and keeps characters grouped by word', () => {
+    component.targetText = 'first second';
+    expect(component.targetWords).toHaveLength(2);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.target-text')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.waiting-text')?.textContent)
+      .toContain('Yazılacak Metin');
+
+    const opponentFixture = TestBed.createComponent(Race);
+    const opponentComponent = opponentFixture.componentInstance;
+    opponentComponent.targetText = 'first second';
+    opponentComponent.opponentName = 'Opponent';
+    opponentFixture.detectChanges();
+
+    expect(opponentFixture.nativeElement.querySelector('.target-text')?.textContent)
+      .toContain('first');
+    const words = Array.from(
+      opponentFixture.nativeElement.querySelectorAll('.target-word')
+    ) as HTMLElement[];
+    expect(words).toHaveLength(2);
+    expect(words.map(word => word.textContent?.replace(/\u00a0/g, ' ').trim()))
+      .toEqual(['first', 'second']);
+    expect(words[0].querySelector('.next-key')?.textContent).toContain('f');
+    opponentFixture.destroy();
   });
 
   it('leaves the shared logo to the application shell', () => {

@@ -44,6 +44,17 @@ interface DifficultyOption {
   selectedBase: string;
 }
 
+interface TargetTextCharacter {
+  index: number;
+  value: string;
+}
+
+interface TargetTextWord {
+  characters: TargetTextCharacter[];
+}
+
+const PLAYER_NAME_CHARACTER = /^(?:\p{L}| )$/u;
+
 @Component({
   selector: 'app-race',
   standalone: true,
@@ -63,6 +74,7 @@ export class Race implements OnInit, OnDestroy {
   private difficultyTypingInterval?: ReturnType<typeof setInterval>;
   private reconnecting = false;
   private targetTextValue = '';
+  private targetWordsValue: TargetTextWord[] = [];
 
   playerName = '';
   roomCode = '';
@@ -137,7 +149,12 @@ export class Race implements OnInit, OnDestroy {
 
   set targetText(value: string) {
     this.targetTextValue = value;
+    this.targetWordsValue = this.buildTargetWords(value);
     this.typingEngine.reset(value);
+  }
+
+  get targetWords(): TargetTextWord[] {
+    return this.targetWordsValue;
   }
 
   get position(): number {
@@ -258,6 +275,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async createRoom(): Promise<void> {
+    this.playerName = this.filterPlayerName(this.playerName).trim();
     if (!this.playerName.trim()) {
       this.message = 'Oyuncu adını gir.';
       return;
@@ -277,6 +295,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async joinRoom(): Promise<void> {
+    this.playerName = this.filterPlayerName(this.playerName).trim();
     if (!this.playerName.trim() || !this.roomCode.trim()) {
       this.message = 'Oyuncu adı ve oda kodu gerekli.';
       return;
@@ -288,6 +307,10 @@ export class Race implements OnInit, OnDestroy {
       this.message = 'Odaya katılınamadı: ' + (err?.message ?? err);
       this.changeDetector.markForCheck();
     }
+  }
+
+  onPlayerNameChange(value: string): void {
+    this.playerName = this.filterPlayerName(value);
   }
 
   async setReady(): Promise<void> {
@@ -383,10 +406,6 @@ export class Race implements OnInit, OnDestroy {
     this.isWinner = false;
     this.result = null;
     this.message = '';
-  }
-
-  get textCharacters(): string[] {
-    return this.targetText.split('');
   }
 
   difficultyLabel(difficulty: RaceDifficulty): string {
@@ -505,5 +524,29 @@ export class Race implements OnInit, OnDestroy {
       this.opponentName = opponent.name;
       this.opponentProgress = opponent.progress;
     }
+  }
+
+  private buildTargetWords(text: string): TargetTextWord[] {
+    let characterIndex = 0;
+
+    return text.split(' ').map((word, wordIndex, words) => {
+      const characters = word.split('').map(value => ({
+        index: characterIndex++,
+        value
+      }));
+
+      if (wordIndex < words.length - 1) {
+        characters.push({ index: characterIndex++, value: ' ' });
+      }
+
+      return { characters };
+    });
+  }
+
+  private filterPlayerName(value: string): string {
+    return Array.from(value)
+      .filter(character => PLAYER_NAME_CHARACTER.test(character))
+      .slice(0, 15)
+      .join('');
   }
 }

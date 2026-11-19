@@ -24,6 +24,48 @@ public sealed class TypingHubTests
         Assert.Equal(0, fixture.Player.Errors);
     }
 
+    [Theory]
+    [InlineData("Player1")]
+    [InlineData("Player!")]
+    [InlineData("abcdefghijklmnop")]
+    public async Task CreateRoom_RejectsInvalidPlayerNames(string playerName)
+    {
+        var fixture = CreateRunningRoom("a");
+
+        var error = await Assert.ThrowsAsync<HubException>(() =>
+            fixture.Hub.CreateRoom("easy", 30, "full", playerName));
+
+        Assert.Contains("15", error.Message);
+        Assert.Empty(fixture.Clients.Messages);
+    }
+
+    [Theory]
+    [InlineData("Player1")]
+    [InlineData("Player!")]
+    [InlineData("abcdefghijklmnop")]
+    public async Task JoinRoom_RejectsInvalidPlayerNames(string playerName)
+    {
+        var fixture = CreateRunningRoom("a");
+
+        var error = await Assert.ThrowsAsync<HubException>(() =>
+            fixture.Hub.JoinRoom(fixture.Room.Code, playerName));
+
+        Assert.Contains("15", error.Message);
+        Assert.Single(fixture.Room.Players);
+    }
+
+    [Fact]
+    public async Task JoinRoom_AcceptsTurkishLettersAndSpacesInPlayerName()
+    {
+        var fixture = CreateRunningRoom("a");
+        fixture.Room.Phase = RacePhase.Waiting;
+        var joiningHub = CreateHubForPlayer(fixture, "player-2");
+
+        await joiningHub.JoinRoom(fixture.Room.Code, " Çağrı Test ");
+
+        Assert.Equal("Çağrı Test", fixture.Room.Players["player-2"].Name);
+    }
+
     [Fact]
     public async Task KeyPress_RefreshesRoomActivity()
     {

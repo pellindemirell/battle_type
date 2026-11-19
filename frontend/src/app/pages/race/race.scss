@@ -386,11 +386,16 @@ select {
 }
 
 .target-text {
-  font-size: 1.5rem;
-  letter-spacing: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: clamp(.8rem, calc(.6rem + 1.5vw), 1.5rem);
+  letter-spacing: clamp(.5px, .35vw, 3px);
   line-height: 2;
   font-family: monospace;
-  white-space: pre-wrap;
+}
+
+.target-word {
+  white-space: nowrap;
 }
 
 .completed-text {
@@ -534,6 +539,13 @@ select {
   .difficulty-options { grid-template-columns: repeat(2, minmax(132px, 1fr)); gap: 8px; }
   .room-option-selects { grid-template-columns: 1fr; }
   .room-options { width: 100%; padding: 14px 8px; }
+}
+
+@media (max-width: 240px) {
+  .target-word {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

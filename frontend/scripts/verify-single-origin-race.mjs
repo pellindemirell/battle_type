@@ -57,12 +57,15 @@ try {
   ]);
 
   await firstPage.getByPlaceholder('Oyuncu adın').fill('Player One');
+  await firstPage.locator('.difficulty-card').nth(3).click();
   await firstPage.getByLabel('Türkçe karakter modu').selectOption('simplified');
   await firstPage.getByRole('button', { name: 'Seçilen ayarlarla oda oluştur' }).click();
   const roomCodeElement = firstPage.locator('.room-code-box strong');
   await roomCodeElement.waitFor({ state: 'visible', timeout: 15_000 });
   const roomCode = (await roomCodeElement.innerText()).trim();
   assert.match(roomCode, /^[A-Z0-9]{5}$/);
+  assert.equal(await firstPage.locator('.target-text').count(), 0);
+  await firstPage.locator('.waiting-text').waitFor({ state: 'visible' });
 
   await secondPage.getByPlaceholder('Oyuncu adın').fill('Player Two');
   await secondPage.getByPlaceholder('Oda kodu (5 hane)').fill(roomCode);
@@ -73,6 +76,14 @@ try {
     waitForOpponent(secondPage, 'Player One')
   ]);
   await Promise.all([
+    firstPage.locator('.target-text').waitFor({ state: 'visible' }),
+    secondPage.locator('.target-text').waitFor({ state: 'visible' })
+  ]);
+  await Promise.all([
+    assertTextFitsViewport(firstPage),
+    assertTextFitsViewport(secondPage)
+  ]);
+  await Promise.all([
     firstPage.getByRole('button', { name: 'Hazırım' }).click(),
     secondPage.getByRole('button', { name: 'Hazırım' }).click()
   ]);
@@ -81,8 +92,12 @@ try {
     secondPage.locator('.keyboard-hint').waitFor({ state: 'visible', timeout: 15_000 })
   ]);
 
-  const firstText = normalizeTarget(await firstPage.locator('.target-text').innerText());
-  const secondText = normalizeTarget(await secondPage.locator('.target-text').innerText());
+  const firstText = normalizeTarget(
+    (await firstPage.locator('.target-text').textContent()) ?? ''
+  );
+  const secondText = normalizeTarget(
+    (await secondPage.locator('.target-text').textContent()) ?? ''
+  );
   assert.equal(firstText, secondText, 'Both players must receive the same race text');
   assert.ok(firstText.length > 0, 'The race text must not be empty');
 
@@ -160,6 +175,46 @@ async function waitForOpponent(page, name) {
     expectedName => document.querySelector('.ready-controls')?.textContent?.includes(expectedName),
     name,
     { timeout: 15_000 }
+  );
+}
+
+async function assertTextFitsViewport(page) {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const layout = await page.locator('.target-text').evaluate(element => {
+    const box = element.closest('.target-text-box');
+    const boxStyle = getComputedStyle(box);
+    const boxBounds = box.getBoundingClientRect();
+    const contentLeft =
+      boxBounds.left +
+      parseFloat(boxStyle.borderLeftWidth) +
+      parseFloat(boxStyle.paddingLeft);
+    const contentRight =
+      boxBounds.right -
+      parseFloat(boxStyle.borderRightWidth) -
+      parseFloat(boxStyle.paddingRight);
+
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      words: Array.from(element.querySelectorAll('.target-word'), word => {
+        const bounds = word.getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right };
+      }),
+      contentLeft,
+      contentRight
+    };
+  });
+
+  assert.ok(
+    layout.scrollWidth <= layout.clientWidth + 1,
+    'Target text must not overflow horizontally'
+  );
+  assert.ok(
+    layout.words.every(word =>
+      word.left >= layout.contentLeft - 1 &&
+      word.right <= layout.contentRight + 1
+    ),
+    'Each target word must stay inside the text box'
   );
 }
 
