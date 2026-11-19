@@ -1,14 +1,28 @@
 # Typing App
 
-## Run locally on Windows
+## Run locally with one origin
 
-Start the .NET API from the repository root in one PowerShell terminal:
+Requirements: Node.js 22, .NET 10, and PowerShell.
+
+From the repository root, run:
+
+```powershell
+.\scripts\run-single-origin.ps1
+```
+
+The script builds Angular, copies the browser output into
+`backend/TypingApp.Api/wwwroot`, and runs the ASP.NET app on port `5027`.
+Open `http://localhost:5027/`.
+
+## Develop with Angular's proxy
+
+Start the backend in one terminal:
 
 ```powershell
 dotnet run --project .\backend\TypingApp.Api\TypingApp.Api.csproj --launch-profile http
 ```
 
-The API listens on port `5027` on all local interfaces. In a second terminal, start Angular:
+In another terminal:
 
 ```powershell
 Set-Location .\frontend
@@ -16,28 +30,57 @@ npm ci # first run only
 npm start
 ```
 
-Open `http://localhost:4200/`. To share the app with another device on the same
-network, find this computer's Wi-Fi IPv4 address with `ipconfig` and open
-`http://<IPv4-address>:4200/` on that device. Angular derives the API host from
-the page host and uses port `5027`. Allow inbound TCP ports `4200` and `5027`
-through Windows Firewall for private networks if prompted. The current Wi-Fi
-address is allowed by `frontend/angular.json`; update its `allowedHosts` list
-if the address changes.
+Open `http://localhost:4200/`. The Angular development proxy forwards `/api`
+and `/raceHub` to port `5027`; WebSocket proxying is enabled for SignalR.
 
-## Run with Docker Compose
+## Remote play over one public address
 
-From the repository root:
+Install `cloudflared`, then start the single-origin script from the repository
+root:
+
+```powershell
+.\scripts\run-single-origin.ps1
+```
+
+In a second terminal, start a temporary public tunnel:
+
+```powershell
+cloudflared tunnel --url http://localhost:5027
+```
+
+Share the HTTPS URL printed by `cloudflared`. Both players open that same URL,
+then one creates a room and shares its room code with the other. The tunnel
+supports the SignalR WebSocket connection; the local application remains on
+HTTP port `5027`. Anyone who has the tunnel URL can access the app, so share it
+only with the intended players.
+
+Production CORS is disabled for same-origin play. If a separate frontend origin
+is intentionally used, set `CORS_ALLOWED_ORIGINS` to a comma-separated list of
+allowed origins.
+
+## Docker
+
+Build and run the combined Angular + ASP.NET container:
 
 ```powershell
 docker compose up --build
 ```
 
-The frontend is available at `http://localhost:4200/` and the API at
-`http://localhost:5027/`.
+Open `http://localhost:5027/`. Docker Compose runs one application container
+and persists the SQLite database in a named volume.
+
+`RaceRoomStore` is in-memory and contains the room state for this single app
+instance. Rooms are lost on restart; do not scale this container to multiple
+instances without moving room state to shared storage.
 
 ## Build and tests
 
 ```powershell
+Set-Location .\frontend
 npm run build
 npm test -- --watch=false
+
+Set-Location ..
+dotnet build
+dotnet test
 ```
