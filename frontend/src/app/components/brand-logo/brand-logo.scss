@@ -10,13 +10,14 @@
 .logo-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: clamp(8px, 1.4vw, 14px);
 }
 
 .logo-tile {
   display: block;
-  width: 96px;
-  height: 96px;
+  width: clamp(44px, 7vw, 68px);
+  height: auto;
+  aspect-ratio: 1;
   overflow: visible;
   rotate: var(--rot);
 
