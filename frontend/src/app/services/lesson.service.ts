@@ -1,21 +1,25 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { Observable, of, throwError } from 'rxjs';
+import lessonsData from '../data/lessons.json';
 import { Lesson } from '../models/lesson';
-import { environment } from '../../environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class LessonService {
-  private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/api/lessons`;
+  private readonly lessons: Lesson[] = lessonsData;
 
   getLessons(): Observable<Lesson[]> {
-    return this.http.get<Lesson[]>(this.apiUrl);
+    return of(this.lessons.filter((lesson) => lesson.isActive));
   }
 
   getLesson(id: number): Observable<Lesson> {
-    return this.http.get<Lesson>(`${this.apiUrl}/${id}`);
+    const lesson = this.lessons.find(
+      (candidate) => candidate.id === id && candidate.isActive
+    );
+
+    return lesson
+      ? of(lesson)
+      : throwError(() => new Error(`Ders ${id} bulunamadı.`));
   }
 }

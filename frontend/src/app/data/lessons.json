@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "order": 1,
+    "title": "Ana Sıra: F ve J",
+    "category": "Ana Sıra",
+    "newKeys": "f j",
+    "text": "fff jjj fjf jfj ffj jjf",
+    "targetWpm": 15,
+    "minAccuracy": 90,
+    "difficulty": "Beginner",
+    "isActive": true
+  },
+  {
+    "id": 2,
+    "order": 2,
+    "title": "Ana Sıra: D ve K",
+    "category": "Ana Sıra",
+    "newKeys": "d k",
+    "text": "ddd kkk dkd kdk fdk jkd",
+    "targetWpm": 20,
+    "minAccuracy": 90,
+    "difficulty": "Beginner",
+    "isActive": true
+  },
+  {
+    "id": 3,
+    "order": 3,
+    "title": "Ana Sıra: S ve L",
+    "category": "Ana Sıra",
+    "newKeys": "s l",
+    "text": "sss lll sls lsl dsl ksl",
+    "targetWpm": 25,
+    "minAccuracy": 90,
+    "difficulty": "Beginner",
+    "isActive": true
+  },
+  {
+    "id": 4,
+    "order": 4,
+    "title": "Ana Sıra Tekrar",
+    "category": "Tekrar",
+    "newKeys": "",
+    "text": "asdf jkl asdf jkl fjdksla",
+    "targetWpm": 30,
+    "minAccuracy": 90,
+    "difficulty": "Beginner",
+    "isActive": true
+  }
+]

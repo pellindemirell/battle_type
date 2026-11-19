@@ -1,64 +1,36 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { environment } from '../../environment';
-import { Lesson } from '../models/lesson';
 import { LessonService } from './lesson.service';
 
 describe('LessonService', () => {
   let service: LessonService;
-  let httpTestingController: HttpTestingController;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting()
-      ]
+      providers: []
     });
 
     service = TestBed.inject(LessonService);
-    httpTestingController = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => {
-    httpTestingController.verify();
-  });
-
-  it('requests the lesson list', () => {
-    const lessons: Lesson[] = [];
-
+  it('returns the active lessons from the bundled data', () => {
     service.getLessons().subscribe((result) => {
-      expect(result).toEqual(lessons);
+      expect(result.length).toBe(4);
+      expect(result.map((lesson) => lesson.id)).toEqual([1, 2, 3, 4]);
     });
-
-    const request = httpTestingController.expectOne(`${environment.apiUrl}/api/lessons`);
-    expect(request.request.method).toBe('GET');
-    request.flush(lessons);
   });
 
-  it('requests a lesson by id', () => {
-    const lesson: Lesson = {
-      id: 2,
-      order: 2,
-      title: 'Ana Sıra: D ve K',
-      category: 'Ana Sıra',
-      newKeys: 'd k',
-      text: 'ddd kkk',
-      targetWpm: 20,
-      minAccuracy: 90,
-      difficulty: 'Beginner',
-      isActive: true
-    };
-
-    service.getLesson(lesson.id).subscribe((result) => {
-      expect(result).toEqual(lesson);
+  it('returns the requested lesson without an API request', () => {
+    service.getLesson(2).subscribe((lesson) => {
+      expect(lesson.title).toBe('Ana Sıra: D ve K');
+      expect(lesson.text).toBe('ddd kkk dkd kdk fdk jkd');
     });
+  });
 
-    const request = httpTestingController.expectOne(
-      `${environment.apiUrl}/api/lessons/${lesson.id}`
-    );
-    expect(request.request.method).toBe('GET');
-    request.flush(lesson);
+  it('reports an error for an unknown lesson id', () => {
+    let errorMessage = '';
+    service.getLesson(999).subscribe({
+      error: (error: Error) => errorMessage = error.message
+    });
+    expect(errorMessage).toBe('Ders 999 bulunamadı.');
   });
 });

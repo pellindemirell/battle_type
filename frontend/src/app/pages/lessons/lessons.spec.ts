@@ -68,7 +68,7 @@ describe('Lessons', () => {
 
     createComponent();
 
-    expect(component.error).toBe('Dersler yüklenemedi. Backend çalışıyor mu?');
+    expect(component.error).toBe('Request failed');
     expect(component.loading).toBe(false);
   });
 });

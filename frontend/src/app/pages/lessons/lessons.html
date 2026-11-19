@@ -1,7 +1,8 @@
 <div class="lesson-page">
   <header class="page-header">
-    <h1>⌨️ Yazma Dersleri</h1>
-    <p class="subtitle">Parmak yerleşiminizi öğrenin, hızınızı artırın</p>
+    <h1>⌨️ Practice dersleri</h1>
+    <p class="subtitle">Parmak yerleşimini öğrenin, kendi hızınızda çalışın</p>
+    <a routerLink="/" class="race-btn">Ana menü</a>
     <a routerLink="/race" class="race-btn">🏁 Yarışmaya Git</a>
   </header>
 
@@ -31,7 +32,7 @@
           <code>{{ lesson.text }}</code>
         </div>
       </div>
-      <a [routerLink]="['/race']" class="start-btn">Yarış ›</a>
+      <a [routerLink]="['/practice', lesson.id]" class="start-btn">Çalışmaya başla ›</a>
     </div>
   </div>
 </div>

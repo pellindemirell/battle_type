@@ -27,7 +27,9 @@ export class Lessons implements OnInit {
         this.changeDetector.markForCheck();
       },
       error: (err) => {
-        this.error = 'Dersler yüklenemedi. Backend çalışıyor mu?';
+        this.error = err instanceof Error
+          ? err.message
+          : 'Dersler yüklenemedi.';
         this.loading = false;
         console.error('Dersler yüklenemedi:', err);
         this.changeDetector.markForCheck();

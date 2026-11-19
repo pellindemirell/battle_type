@@ -17,6 +17,7 @@ import {
   RaceRoomSettings
 } from '../../models/race';
 import { RaceService } from '../../services/race.service';
+import { TypingEngine } from '../../services/typing-engine';
 
 interface RoomCreatedMessage {
   roomCode: string;
@@ -46,9 +47,11 @@ interface DifficultyOption {
 export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
   private changeDetector = inject(ChangeDetectorRef);
+  private typingEngine = inject(TypingEngine);
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
   private reconnecting = false;
+  private targetTextValue = '';
 
   playerName = '';
   roomCode = '';
@@ -62,10 +65,6 @@ export class Race implements OnInit, OnDestroy {
     { value: 'hard', label: 'Zor', description: '7–11 harf' },
     { value: 'expert', label: 'Uzman', description: '10–17 harf' }
   ];
-  position = 0;
-  errors = 0;
-  keystrokes = 0;
-  targetText = '';
   wrongKey: string | null = null;
   capsLockOn = false;
   opponentName = '';
@@ -81,6 +80,27 @@ export class Race implements OnInit, OnDestroy {
   isWinner = false;
   result: RaceResult | null = null;
   message = '';
+
+  get targetText(): string {
+    return this.targetTextValue;
+  }
+
+  set targetText(value: string) {
+    this.targetTextValue = value;
+    this.typingEngine.reset(value);
+  }
+
+  get position(): number {
+    return this.typingEngine.position;
+  }
+
+  get errors(): number {
+    return this.typingEngine.errors;
+  }
+
+  get keystrokes(): number {
+    return this.typingEngine.keystrokes;
+  }
 
   ngOnInit(): void {
     this.unsubscribeHandlers.push(
@@ -107,9 +127,7 @@ export class Race implements OnInit, OnDestroy {
         this.result = null;
         this.winner = '';
         this.isWinner = false;
-        this.position = 0;
-        this.errors = 0;
-        this.keystrokes = 0;
+        this.typingEngine.reset(this.targetText);
         this.myProgress = 0;
         this.opponentProgress = 0;
         this.wrongKey = null;
@@ -260,16 +278,15 @@ export class Race implements OnInit, OnDestroy {
     }
 
     event.preventDefault();
-    if (this.position >= this.targetText.length)
+    const key = event.key;
+    const input = this.typingEngine.press(key);
+    if (!input.accepted)
       return;
 
-    const key = event.key;
-    if (key === this.targetText[this.position]) {
-      this.position++;
+    if (input.correct) {
       this.wrongKey = null;
       this.clearWrongKeyTimer();
     } else {
-      this.errors++;
       this.wrongKey = key === ' ' ? '␣' : key;
       this.clearWrongKeyTimer();
       this.wrongKeyTimer = setTimeout(() => {
@@ -279,7 +296,6 @@ export class Race implements OnInit, OnDestroy {
       }, 400);
     }
 
-    this.keystrokes++;
     this.myProgress = this.position * 100 / this.targetText.length;
     this.changeDetector.markForCheck();
 
@@ -293,9 +309,6 @@ export class Race implements OnInit, OnDestroy {
   resetRace(): void {
     this.clearWrongKeyTimer();
     this.roomCode = '';
-    this.position = 0;
-    this.errors = 0;
-    this.keystrokes = 0;
     this.targetText = '';
     this.roomSettings = null;
     this.wrongKey = null;
@@ -337,9 +350,11 @@ export class Race implements OnInit, OnDestroy {
     const opponent = players.find((player) => player.id !== connectionId);
 
     if (me) {
-      this.position = me.position;
-      this.errors = me.errors;
-      this.keystrokes = me.keystrokes;
+      this.typingEngine.syncFromServer(
+        me.position,
+        me.errors,
+        me.keystrokes
+      );
       this.myProgress = me.progress;
     }
 
