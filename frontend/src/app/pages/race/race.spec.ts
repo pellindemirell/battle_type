@@ -1,3 +1,4 @@
+import { afterEach } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Race } from './race';
 import { RaceService } from '../../services/race.service';
@@ -15,6 +16,12 @@ describe('Race', () => {
     setReady: ReturnType<typeof vi.fn>;
     rematch: ReturnType<typeof vi.fn>;
   };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    fixture?.destroy();
+  });
 
   beforeEach(async () => {
     raceService = {
@@ -88,12 +95,14 @@ describe('Race', () => {
 
   it('creates a room with the selected difficulty, length, and character mode', async () => {
     component.playerName = 'Player';
-    component.difficulty = 'hard';
     component.wordCount = 45;
     component.characterMode = 'simplified';
+    const hardCard = fixture.nativeElement.querySelectorAll('[role="radio"]')[2] as HTMLButtonElement;
+    hardCard.click();
 
     await component.createRoom();
 
+    expect(component.difficulty).toBe('hard');
     expect(raceService.createRoom).toHaveBeenCalledWith(
       'hard',
       45,
@@ -119,5 +128,106 @@ describe('Race', () => {
 
   it('leaves the shared logo to the application shell', () => {
     expect(fixture.nativeElement.querySelector('app-brand-logo')).toBeNull();
+  });
+
+  it('renders four radio cards with exactly one selected and roving tab stop', () => {
+    const root = fixture.nativeElement as HTMLElement;
+    const group = root.querySelector('[role="radiogroup"]');
+    const cards = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+    );
+
+    expect(group?.getAttribute('aria-label')).toBe('Zorluk seviyesi');
+    expect(cards).toHaveLength(4);
+    expect(cards.filter(card => card.getAttribute('aria-checked') === 'true')).toHaveLength(1);
+    expect(cards.map(card => card.getAttribute('tabindex'))).toEqual(['0', '-1', '-1', '-1']);
+    expect(cards.map(card => card.querySelectorAll('.difficulty-pip.filled').length))
+      .toEqual([1, 2, 3, 4]);
+  });
+
+  it('moves radio selection and focus with wrapping arrow keys', () => {
+    const cards = Array.from(fixture.nativeElement.querySelectorAll('[role="radio"]')) as HTMLButtonElement[];
+    const right = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+      cancelable: true
+    });
+
+    cards[0].dispatchEvent(right);
+    fixture.detectChanges();
+
+    expect(right.defaultPrevented).toBe(true);
+    expect(component.difficulty).toBe('medium');
+    expect(document.activeElement).toBe(cards[1]);
+
+    cards[1].dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      bubbles: true,
+      cancelable: true
+    }));
+    fixture.detectChanges();
+    expect(component.difficulty).toBe('easy');
+    expect(document.activeElement).toBe(cards[0]);
+  });
+
+  it('selects a difficulty with Enter and Space keys', () => {
+    const cards = Array.from(fixture.nativeElement.querySelectorAll('[role="radio"]')) as HTMLButtonElement[];
+
+    cards[2].dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true
+    }));
+    expect(component.difficulty).toBe('hard');
+
+    cards[3].dispatchEvent(new KeyboardEvent('keydown', {
+      key: ' ',
+      bubbles: true,
+      cancelable: true
+    }));
+    expect(component.difficulty).toBe('expert');
+  });
+
+  it('types the example on hover and restores it when hover ends', async () => {
+    const option = component.difficultyOptions[2];
+    component.startDifficultyPreview(option);
+
+    await new Promise(resolve => setTimeout(resolve, 120));
+    fixture.detectChanges();
+    expect(component.typedDifficultyExample.length).toBeGreaterThan(0);
+
+    component.stopDifficultyPreview(option);
+    fixture.detectChanges();
+    expect(component.activeDifficultyPreview).toBeNull();
+    expect(component.typedDifficultyExample).toBe('');
+    const example = fixture.nativeElement.querySelectorAll('.example-word')[2];
+    expect(example.textContent).toContain(option.example);
+    expect(component.activeDifficultyPreview).toBeNull();
+  });
+
+  it('does not start hover timers when reduced motion is requested', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const reducedFixture = TestBed.createComponent(Race);
+    reducedFixture.detectChanges();
+    const reducedComponent = reducedFixture.componentInstance;
+    const setInterval = vi.spyOn(globalThis, 'setInterval');
+
+    reducedComponent.startDifficultyPreview(reducedComponent.difficultyOptions[0]);
+    reducedFixture.detectChanges();
+
+    expect(setInterval).not.toHaveBeenCalled();
+    expect(reducedComponent.activeDifficultyPreview).toBeNull();
+    expect(reducedFixture.nativeElement.querySelector('.difficulty-pip.bouncing')).toBeNull();
+    expect(reducedFixture.nativeElement.querySelector('.example-word.typing')).toBeNull();
+    reducedFixture.destroy();
+  });
+
+  it('clears the example typing interval when the race component is destroyed', () => {
+    const clearInterval = vi.spyOn(globalThis, 'clearInterval');
+    component.startDifficultyPreview(component.difficultyOptions[0]);
+
+    fixture.destroy();
+
+    expect(clearInterval).toHaveBeenCalled();
   });
 });

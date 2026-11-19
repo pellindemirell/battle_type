@@ -442,6 +442,7 @@ export class Race implements OnInit, OnDestroy {
     this.clearDifficultyTypingInterval();
     this.activeDifficultyPreview = null;
     this.typedDifficultyExample = '';
+    this.changeDetector.markForCheck();
   }
 
   onDifficultyKeydown(event: KeyboardEvent, option: DifficultyOption): void {

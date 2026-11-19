@@ -8,7 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:typing-app-ui": "node dist/typing-app-ui/server/server.mjs",
-    "test:logo-layout": "node scripts/verify-logo-layout.mjs"
+    "test:race-ui": "node scripts/verify-race-ui.mjs"
   },
   "private": true,
   "packageManager": "npm@11.13.0",
