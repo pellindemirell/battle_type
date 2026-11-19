@@ -25,6 +25,17 @@ public sealed class TypingHubTests
     }
 
     [Fact]
+    public async Task KeyPress_RefreshesRoomActivity()
+    {
+        var fixture = CreateRunningRoom("ab");
+        fixture.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        await fixture.Hub.KeyPress(fixture.Room.Code, null);
+
+        Assert.Equal(fixture.TimeProvider.GetUtcNow(), fixture.Room.LastActivityAt);
+    }
+
+    [Fact]
     public async Task KeyPress_IgnoresInputsWithinTwentyMilliseconds()
     {
         var fixture = CreateRunningRoom("ab");
@@ -106,6 +117,7 @@ public sealed class TypingHubTests
             Code = "ROOM1",
             Text = text,
             StartedAt = timeProvider.GetUtcNow().UtcDateTime,
+            LastActivityAt = timeProvider.GetUtcNow(),
             Phase = RacePhase.Running
         };
         room.Players.Add("player-1", player);

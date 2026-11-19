@@ -59,7 +59,8 @@ public class TypingHub : Hub
             {
                 Code = roomCode,
                 Text = text,
-                Settings = settings
+                Settings = settings,
+                LastActivityAt = _timeProvider.GetUtcNow()
             };
             room.Players.Add(Context.ConnectionId, new PlayerState
             {
@@ -353,6 +354,8 @@ public class TypingHub : Hub
                 var wasRunning = room.Phase == RacePhase.Running;
                 room.Players.Remove(Context.ConnectionId, out disconnectedPlayer);
                 removeRoom = disconnectedPlayer is not null && room.Players.Count == 0;
+                if (disconnectedPlayer is not null)
+                    room.LastActivityAt = _timeProvider.GetUtcNow();
 
                 if (disconnectedPlayer is not null &&
                     room.Phase == RacePhase.Countdown)
@@ -416,6 +419,17 @@ public class TypingHub : Hub
             room is null)
         {
             throw new HubException("Oda bulunamadı.");
+        }
+
+        lock (room.Lock)
+        {
+            if (!_rooms.TryGet(room.Code, out var currentRoom) ||
+                !ReferenceEquals(room, currentRoom))
+            {
+                throw new HubException("Oda bulunamadı.");
+            }
+
+            room.LastActivityAt = _timeProvider.GetUtcNow();
         }
 
         return room;

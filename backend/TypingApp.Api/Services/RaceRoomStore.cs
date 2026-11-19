@@ -33,6 +33,8 @@ public sealed class RoomState
     public Dictionary<string, PlayerState> Players { get; } =
         new(StringComparer.Ordinal);
 
+    public DateTimeOffset LastActivityAt { get; set; }
+
     public DateTime? StartedAt { get; set; }
 
     public bool Finished { get; set; }

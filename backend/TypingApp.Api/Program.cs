@@ -20,6 +20,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<RaceRoomStore>();
 builder.Services.AddSingleton<WordSelector>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddHostedService<InactiveRoomCleanupService>();
 
 builder.Services.AddCors(options =>
 {
