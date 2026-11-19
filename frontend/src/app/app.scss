@@ -24,9 +24,18 @@ button {
 }
 
 :host {
+  position: relative;
   display: block;
   min-height: 100vh;
   isolation: isolate;
+}
+
+.brand-header {
+  position: absolute;
+  z-index: 1;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .ambient-background {

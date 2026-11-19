@@ -117,11 +117,7 @@ describe('Race', () => {
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
   });
 
-  it('renders the standalone type logo', () => {
-    const logo = fixture.nativeElement.querySelector('app-brand-logo .type-logo');
-
-    expect(logo.getAttribute('role')).toBe('img');
-    expect(logo.getAttribute('aria-label')).toBe('type');
-    expect(logo.querySelectorAll('.logo-tile')).toHaveLength(4);
+  it('leaves the shared logo to the application shell', () => {
+    expect(fixture.nativeElement.querySelector('app-brand-logo')).toBeNull();
   });
 });

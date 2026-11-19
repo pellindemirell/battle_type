@@ -1,9 +1,27 @@
-import {
-  ChangeDetectorRef,
-  Component,
-  OnDestroy,
-  inject
-} from '@angular/core';
+import { Component } from '@angular/core';
+import spriteData from '../../../../public/assets/brand/sprites.json';
+
+interface SpriteInfo {
+  name: string;
+  kind: 'key' | 'burst';
+  file: string;
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  origin?: string;
+  nearestKey?: string;
+}
+
+interface SpriteManifest {
+  canvas: {
+    width: number;
+    height: number;
+  };
+  sprites: SpriteInfo[];
+}
+
+const manifest = spriteData as SpriteManifest;
 
 @Component({
   selector: 'app-brand-logo',
@@ -11,50 +29,15 @@ import {
   templateUrl: './brand-logo.html',
   styleUrl: './brand-logo.scss'
 })
-export class BrandLogo implements OnDestroy {
-  private readonly changeDetector = inject(ChangeDetectorRef);
-  private touchBounceTimer?: ReturnType<typeof setTimeout>;
+export class BrandLogo {
+  readonly canvas = manifest.canvas;
+  readonly keySprites = manifest.sprites.filter(sprite => sprite.kind === 'key');
+  readonly burstGroups = (['burst-a', 'burst-b'] as const).map(name => ({
+    name,
+    sprites: manifest.sprites.filter(sprite => sprite.name.startsWith(`${name}-`))
+  }));
 
-  introActive = true;
-  activeTile: 't' | 'y' | 'p' | 'e' | null = null;
-
-  ngOnDestroy(): void {
-    if (this.touchBounceTimer)
-      clearTimeout(this.touchBounceTimer);
-  }
-
-  replayIntro(): void {
-    this.introActive = false;
-    this.changeDetector.detectChanges();
-
-    requestAnimationFrame(() => {
-      this.introActive = true;
-      this.changeDetector.markForCheck();
-    });
-  }
-
-  activateTile(
-    tile: 't' | 'y' | 'p' | 'e',
-    event: PointerEvent
-  ): void {
-    this.activeTile = tile;
-
-    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-      if (this.touchBounceTimer)
-        clearTimeout(this.touchBounceTimer);
-
-      this.touchBounceTimer = setTimeout(() => {
-        this.activeTile = null;
-        this.touchBounceTimer = undefined;
-      }, 550);
-    }
-  }
-
-  deactivateTile(
-    tile: 't' | 'y' | 'p' | 'e',
-    event: PointerEvent
-  ): void {
-    if (event.pointerType !== 'touch' && this.activeTile === tile)
-      this.activeTile = null;
+  assetPath(sprite: SpriteInfo): string {
+    return `/assets/brand/${sprite.file}`;
   }
 }

@@ -18,7 +18,6 @@ import {
 } from '../../models/race';
 import { RaceService } from '../../services/race.service';
 import { TypingEngine } from '../../services/typing-engine';
-import { BrandLogo } from '../../components/brand-logo/brand-logo';
 
 interface RoomCreatedMessage {
   roomCode: string;
@@ -41,7 +40,7 @@ interface DifficultyOption {
 @Component({
   selector: 'app-race',
   standalone: true,
-  imports: [CommonModule, FormsModule, BrandLogo],
+  imports: [CommonModule, FormsModule],
   templateUrl: './race.html',
   styleUrl: './race.scss'
 })
