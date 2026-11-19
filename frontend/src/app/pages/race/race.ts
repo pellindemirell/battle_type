@@ -65,6 +65,15 @@ export class Race implements OnInit, OnDestroy {
     { value: 'hard', label: 'Zor', description: '7–11 harf' },
     { value: 'expert', label: 'Uzman', description: '10–17 harf' }
   ];
+  readonly topLogoKeys = ['type-t.png', 'type-y.png', 'type-p.png', 'type-e.png'];
+  readonly bottomLogoKeys = [
+    'battle-b.png',
+    'battle-a.png',
+    'battle-t1.png',
+    'battle-t2.png',
+    'battle-l.png',
+    'battle-e.png'
+  ];
   wrongKey: string | null = null;
   capsLockOn = false;
   opponentName = '';

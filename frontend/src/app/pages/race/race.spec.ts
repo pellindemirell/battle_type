@@ -116,4 +116,12 @@ describe('Race', () => {
     expect(settings.textContent).toContain('45 kelime');
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
   });
+
+  it('renders the accessible typeBattle logo as individually animated keys', () => {
+    const heading = fixture.nativeElement.querySelector('.brand-title');
+
+    expect(heading.getAttribute('aria-label')).toBe('typeBattle');
+    expect(heading.querySelectorAll('.brand-key')).toHaveLength(10);
+    expect(heading.querySelector('.sr-only').textContent.trim()).toBe('typeBattle');
+  });
 });

@@ -13,6 +13,67 @@ h1 {
   color: #16213e;
 }
 
+.brand-title {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 680px);
+  margin: 0 auto 24px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.brand-rows {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+}
+
+.brand-row {
+  display: flex;
+  gap: clamp(3px, 0.6vw, 6px);
+}
+
+.brand-row-top {
+  width: 52%;
+}
+
+.brand-row-bottom {
+  width: 75%;
+  margin-left: 25%;
+}
+
+.brand-key {
+  display: block;
+  height: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  opacity: 0;
+  animation: brand-key-drop 650ms cubic-bezier(0.2, 0.8, 0.25, 1.15) both;
+}
+
+@keyframes brand-key-drop {
+  0% {
+    transform: translateY(-90px) rotate(-8deg);
+    opacity: 0;
+  }
+  72% {
+    transform: translateY(5px) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+}
+
 /* Setup */
 .setup {
   display: flex;
@@ -398,6 +459,12 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand-key {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
   .difficulty-option {
     transition: none;
 

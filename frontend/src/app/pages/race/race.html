@@ -1,5 +1,27 @@
 <div class="race-page">
-  <h1>⌨️ Hızlı Yazma Yarışı</h1>
+  <h1 class="brand-title" aria-label="typeBattle">
+    <span class="sr-only">typeBattle</span>
+    <span class="brand-rows" aria-hidden="true">
+      <span class="brand-row brand-row-top">
+        <img
+          *ngFor="let key of topLogoKeys; let i = index"
+          class="brand-key"
+          [src]="'/brand/typebattle-keys/' + key"
+          alt=""
+          [style.animation-delay.ms]="i * 90"
+        />
+      </span>
+      <span class="brand-row brand-row-bottom">
+        <img
+          *ngFor="let key of bottomLogoKeys; let i = index"
+          class="brand-key"
+          [src]="'/brand/typebattle-keys/' + key"
+          alt=""
+          [style.animation-delay.ms]="(i + topLogoKeys.length) * 90"
+        />
+      </span>
+    </span>
+  </h1>
 
   <div class="setup" *ngIf="!targetText">
     <div class="setup-group">
