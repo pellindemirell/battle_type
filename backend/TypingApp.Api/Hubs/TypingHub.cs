@@ -1,38 +1,46 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using TypingApp.Api.Data;
 using TypingApp.Api.Services;
 
 namespace TypingApp.Api.Hubs;
 
 public class TypingHub : Hub
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly RaceRoomStore _rooms;
+    private readonly WordSelector _wordSelector;
 
-    public TypingHub(IServiceScopeFactory scopeFactory, RaceRoomStore rooms)
+    public TypingHub(RaceRoomStore rooms, WordSelector wordSelector)
     {
-        _scopeFactory = scopeFactory;
         _rooms = rooms;
+        _wordSelector = wordSelector;
     }
 
-    public async Task<string> CreateRoom(int lessonId, string playerName)
+    public async Task<string> CreateRoom(
+        string? difficulty,
+        int wordCount,
+        string? characterMode,
+        string? playerName)
     {
         if (string.IsNullOrWhiteSpace(playerName))
             throw new HubException("Oyuncu adı gerekli.");
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var lesson = await db.Lessons
-            .FirstOrDefaultAsync(x => x.Id == lessonId && x.IsActive);
-
-        if (lesson is null)
-            throw new HubException("Ders bulunamadı.");
-
-        if (string.IsNullOrEmpty(lesson.Text))
-            throw new HubException("Bu derste yarışılacak metin yok.");
+        RoomSettings settings;
+        try
+        {
+            settings = RoomSettings.Create(
+                difficulty,
+                wordCount,
+                characterMode);
+        }
+        catch (ArgumentException error)
+        {
+            throw new HubException(error.Message);
+        }
 
         var normalizedPlayerName = playerName.Trim();
+        var text = _wordSelector.BuildText(
+            settings.Level,
+            settings.WordCount,
+            settings.SimplifyTurkish);
         string roomCode;
         RoomState room;
 
@@ -42,8 +50,8 @@ public class TypingHub : Hub
             room = new RoomState
             {
                 Code = roomCode,
-                LessonId = lesson.Id,
-                Text = lesson.Text
+                Text = text,
+                Settings = settings
             };
             room.Players.Add(Context.ConnectionId, new PlayerState
             {
@@ -58,9 +66,9 @@ public class TypingHub : Hub
             new
             {
                 roomCode,
-                title = lesson.Title,
                 text = room.Text,
-                playerName = normalizedPlayerName
+                playerName = normalizedPlayerName,
+                settings = BuildRoomSettings(room.Settings)
             });
 
         return roomCode;
@@ -100,7 +108,8 @@ public class TypingHub : Hub
             new
             {
                 text = room.Text,
-                players = progress
+                players = progress,
+                settings = BuildRoomSettings(room.Settings)
             });
         await SendReadyStatus(room);
     }
@@ -438,4 +447,11 @@ public class TypingHub : Hub
         keystrokes == 0
             ? 0
             : Math.Round(100.0 * (keystrokes - errors) / keystrokes);
+
+    private static object BuildRoomSettings(RoomSettings settings) => new
+    {
+        difficulty = settings.DifficultyKey,
+        wordCount = settings.WordCount,
+        characterMode = settings.CharacterModeKey
+    };
 }

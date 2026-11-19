@@ -9,20 +9,31 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  RaceCharacterMode,
+  RaceDifficulty,
   RacePlayerProgress,
   RaceReadyStatus,
-  RaceResult
+  RaceResult,
+  RaceRoomSettings
 } from '../../models/race';
 import { RaceService } from '../../services/race.service';
 
 interface RoomCreatedMessage {
   roomCode: string;
   text: string;
+  settings: RaceRoomSettings;
 }
 
 interface PlayerJoinedMessage {
   text: string;
   players: RacePlayerProgress[];
+  settings: RaceRoomSettings;
+}
+
+interface DifficultyOption {
+  value: RaceDifficulty;
+  label: string;
+  description: string;
 }
 
 @Component({
@@ -41,7 +52,16 @@ export class Race implements OnInit, OnDestroy {
 
   playerName = '';
   roomCode = '';
-  lessonId = 1;
+  difficulty: RaceDifficulty = 'easy';
+  wordCount = 30;
+  characterMode: RaceCharacterMode = 'full';
+  roomSettings: RaceRoomSettings | null = null;
+  readonly difficultyOptions: DifficultyOption[] = [
+    { value: 'easy', label: 'Kolay', description: '3–5 harf' },
+    { value: 'medium', label: 'Orta', description: '5–8 harf' },
+    { value: 'hard', label: 'Zor', description: '7–11 harf' },
+    { value: 'expert', label: 'Uzman', description: '10–17 harf' }
+  ];
   position = 0;
   errors = 0;
   keystrokes = 0;
@@ -67,11 +87,13 @@ export class Race implements OnInit, OnDestroy {
       this.raceService.on('RoomCreated', (data: RoomCreatedMessage) => {
         this.roomCode = data.roomCode;
         this.targetText = data.text;
+        this.roomSettings = data.settings;
         this.message = 'Rakibin bekleniyor.';
         this.changeDetector.markForCheck();
       }),
       this.raceService.on('PlayerJoined', (data: PlayerJoinedMessage) => {
         this.targetText = data.text;
+        this.roomSettings = data.settings;
         this.updatePlayers(data.players);
         this.message = 'Rakip katıldı.';
         this.changeDetector.markForCheck();
@@ -166,7 +188,12 @@ export class Race implements OnInit, OnDestroy {
     }
 
     try {
-      await this.raceService.createRoom(this.lessonId, this.playerName);
+      await this.raceService.createRoom(
+        this.difficulty,
+        this.wordCount,
+        this.characterMode,
+        this.playerName
+      );
     } catch (err: any) {
       this.message = 'Oda oluşturulamadı: ' + (err?.message ?? err);
       this.changeDetector.markForCheck();
@@ -270,6 +297,7 @@ export class Race implements OnInit, OnDestroy {
     this.errors = 0;
     this.keystrokes = 0;
     this.targetText = '';
+    this.roomSettings = null;
     this.wrongKey = null;
     this.opponentName = '';
     this.myProgress = 0;
@@ -288,6 +316,12 @@ export class Race implements OnInit, OnDestroy {
 
   get textCharacters(): string[] {
     return this.targetText.split('');
+  }
+
+  difficultyLabel(difficulty: RaceDifficulty): string {
+    return this.difficultyOptions.find(
+      (option) => option.value === difficulty
+    )?.label ?? difficulty;
   }
 
   private clearWrongKeyTimer(): void {

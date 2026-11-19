@@ -1,3 +1,13 @@
+export type RaceDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
+
+export type RaceCharacterMode = 'full' | 'simplified';
+
+export interface RaceRoomSettings {
+  difficulty: RaceDifficulty;
+  wordCount: number;
+  characterMode: RaceCharacterMode;
+}
+
 export interface RacePlayerProgress {
   id: string;
   name: string;

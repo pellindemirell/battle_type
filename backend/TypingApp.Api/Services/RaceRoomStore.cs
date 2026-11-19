@@ -26,9 +26,9 @@ public sealed class RoomState
 
     public string Code { get; init; } = "";
 
-    public int LessonId { get; init; }
-
     public string Text { get; init; } = "";
+
+    public RoomSettings Settings { get; init; } = RoomSettings.Default;
 
     public Dictionary<string, PlayerState> Players { get; } =
         new(StringComparer.Ordinal);

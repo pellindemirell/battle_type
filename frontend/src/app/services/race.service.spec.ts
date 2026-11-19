@@ -45,11 +45,17 @@ describe('RaceService', () => {
     const handler = vi.fn();
 
     service.on('RoomCreated', handler);
-    await service.createRoom(1, 'Player');
+    await service.createRoom('easy', 30, 'full', 'Player');
 
     expect(connection.on).toHaveBeenCalledWith('RoomCreated', handler);
     expect(connection.start).toHaveBeenCalledOnce();
-    expect(connection.invoke).toHaveBeenCalledWith('CreateRoom', 1, 'Player');
+    expect(connection.invoke).toHaveBeenCalledWith(
+      'CreateRoom',
+      'easy',
+      30,
+      'full',
+      'Player'
+    );
     expect(handlers.get('RoomCreated')).toBe(handler);
   });
 

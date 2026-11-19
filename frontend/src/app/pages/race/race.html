@@ -11,15 +11,52 @@
       />
     </div>
 
-    <div class="setup-group">
-      <select [(ngModel)]="lessonId">
-        <option [value]="1">Ders 1 – F ve J</option>
-        <option [value]="2">Ders 2 – D ve K</option>
-        <option [value]="3">Ders 3 – S ve L</option>
-        <option [value]="4">Ders 4 – Ana Sıra Tekrar</option>
-      </select>
-      <button class="btn-primary" (click)="createRoom()">Oda Oluştur</button>
-    </div>
+    <section class="room-options" aria-label="Yarış ayarları">
+      <h2>Yarış ayarları</h2>
+      <div class="difficulty-options" role="group" aria-label="Zorluk seviyesi">
+        <button
+          *ngFor="let option of difficultyOptions"
+          type="button"
+          class="difficulty-option"
+          [class.selected]="difficulty === option.value"
+          [attr.aria-pressed]="difficulty === option.value"
+          (click)="difficulty = option.value"
+        >
+          <strong>{{ option.label }}</strong>
+          <span>{{ option.description }}</span>
+        </button>
+      </div>
+
+      <div class="room-option-selects">
+        <label>
+          Kelime sayısı
+          <select [(ngModel)]="wordCount" aria-label="Kelime sayısı">
+            <option [ngValue]="30">30 kelime</option>
+            <option [ngValue]="45">45 kelime</option>
+            <option [ngValue]="60">60 kelime</option>
+          </select>
+        </label>
+        <label>
+          Türkçe karakter modu
+          <select
+            [(ngModel)]="characterMode"
+            aria-label="Türkçe karakter modu"
+          >
+            <option value="full">Tam</option>
+            <option value="simplified">Sadeleştirilmiş</option>
+          </select>
+        </label>
+      </div>
+
+      <button
+        class="btn-primary"
+        type="button"
+        aria-label="Seçilen ayarlarla oda oluştur"
+        (click)="createRoom()"
+      >
+        Oda Oluştur
+      </button>
+    </section>
 
     <div class="setup-group">
       <input
@@ -34,6 +71,16 @@
   </div>
 
   <p class="status-message" *ngIf="message">{{ message }}</p>
+
+  <div class="room-settings" *ngIf="roomSettings">
+    <span class="difficulty-badge">
+      {{ difficultyLabel(roomSettings.difficulty) }}
+    </span>
+    <span>{{ roomSettings.wordCount }} kelime</span>
+    <span>
+      {{ roomSettings.characterMode === 'full' ? 'Tam karakter' : 'Sadeleştirilmiş karakter' }}
+    </span>
+  </div>
 
   <div class="room-code-box" *ngIf="roomCode && !raceStarted && !raceFinished">
     <span>Oda Kodu:</span>
