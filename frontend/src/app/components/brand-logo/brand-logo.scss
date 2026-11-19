@@ -1,0 +1,54 @@
+:host {
+  display: block;
+}
+
+.type-logo {
+  display: flex;
+  justify-content: center;
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-tile {
+  display: block;
+  width: 96px;
+  height: 96px;
+  overflow: visible;
+  rotate: var(--rot);
+
+  &.tile-t { --rot: -6deg; }
+  &.tile-y { --rot: 4deg; }
+  &.tile-p { --rot: -3deg; }
+  &.tile-e { --rot: 6deg; }
+}
+
+.tile-base {
+  fill: #6b1fa8;
+}
+
+.tile-face {
+  stroke: #3d1060;
+  stroke-linejoin: round;
+  stroke-width: 1.5px;
+}
+
+.letter-outline,
+.letter-fill {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.letter-outline {
+  stroke: #3d1060;
+  stroke-width: 16px;
+}
+
+.letter-fill {
+  stroke: #fff;
+  stroke-width: 9px;
+}

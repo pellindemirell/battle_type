@@ -117,11 +117,11 @@ describe('Race', () => {
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
   });
 
-  it('renders the accessible typeBattle logo as individually animated keys', () => {
-    const heading = fixture.nativeElement.querySelector('.brand-title');
+  it('renders the standalone type logo', () => {
+    const logo = fixture.nativeElement.querySelector('app-brand-logo .type-logo');
 
-    expect(heading.getAttribute('aria-label')).toBe('typeBattle');
-    expect(heading.querySelectorAll('.brand-key')).toHaveLength(10);
-    expect(heading.querySelector('.sr-only').textContent.trim()).toBe('typeBattle');
+    expect(logo.getAttribute('role')).toBe('img');
+    expect(logo.getAttribute('aria-label')).toBe('type');
+    expect(logo.querySelectorAll('.logo-tile')).toHaveLength(4);
   });
 });
