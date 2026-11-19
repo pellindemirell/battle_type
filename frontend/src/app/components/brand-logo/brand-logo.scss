@@ -29,13 +29,10 @@
   position: relative;
 }
 
-.logo-tile {
+.tile-entry {
   display: block;
   width: clamp(44px, 7vw, 68px);
-  height: auto;
-  aspect-ratio: 1;
-  overflow: visible;
-  rotate: var(--rot);
+  flex: 0 0 auto;
   opacity: 1;
   translate: 0 0;
 
@@ -45,8 +42,27 @@
   &.tile-e { --rot: 6deg; --entry-x: 40px; --entry-delay: 120ms; }
 }
 
-.intro-active .logo-tile {
+.logo-tile {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  rotate: var(--rot);
+  translate: 0 0;
+}
+
+.intro-active .tile-entry {
   animation: tile-arrive 350ms ease-out var(--entry-delay) both;
+}
+
+.logo-tile.bouncing {
+  animation: tile-hop 550ms ease-in-out;
+}
+
+@keyframes tile-hop {
+  0%, 100% { translate: 0 0; }
+  35% { translate: 0 -8px; }
+  65% { translate: 0 2px; }
 }
 
 .collision-burst {
@@ -108,6 +124,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tile-entry,
   .logo-tile,
   .burst-line {
     animation: none !important;

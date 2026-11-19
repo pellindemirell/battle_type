@@ -11,7 +11,16 @@
     aria-label="type"
   >
     <span class="logo-row" aria-hidden="true">
-      <svg class="logo-tile tile-t" viewBox="0 0 100 100" aria-hidden="true">
+      <span class="tile-entry tile-t">
+      <svg
+        class="logo-tile"
+        [class.bouncing]="activeTile === 't'"
+        (pointerenter)="activateTile('t', $event)"
+        (pointerdown)="activateTile('t', $event)"
+        (pointerleave)="deactivateTile('t', $event)"
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="tile-gradient-t" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stop-color="#a43bf0" />
@@ -23,8 +32,18 @@
         <path class="letter-outline" d="M49 22 V57 Q49 65 57 65 H61 M36 35 H62" />
         <path class="letter-fill" d="M49 22 V57 Q49 65 57 65 H61 M36 35 H62" />
       </svg>
+      </span>
 
-      <svg class="logo-tile tile-y" viewBox="0 0 100 100" aria-hidden="true">
+      <span class="tile-entry tile-y">
+      <svg
+        class="logo-tile"
+        [class.bouncing]="activeTile === 'y'"
+        (pointerenter)="activateTile('y', $event)"
+        (pointerdown)="activateTile('y', $event)"
+        (pointerleave)="deactivateTile('y', $event)"
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="tile-gradient-y" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stop-color="#a43bf0" />
@@ -36,8 +55,18 @@
         <path class="letter-outline" d="M33 33 L48 56 Q51 61 54 56 L68 33 M51 58 L45 75" />
         <path class="letter-fill" d="M33 33 L48 56 Q51 61 54 56 L68 33 M51 58 L45 75" />
       </svg>
+      </span>
 
-      <svg class="logo-tile tile-p" viewBox="0 0 100 100" aria-hidden="true">
+      <span class="tile-entry tile-p">
+      <svg
+        class="logo-tile"
+        [class.bouncing]="activeTile === 'p'"
+        (pointerenter)="activateTile('p', $event)"
+        (pointerdown)="activateTile('p', $event)"
+        (pointerleave)="deactivateTile('p', $event)"
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="tile-gradient-p" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stop-color="#a43bf0" />
@@ -49,8 +78,18 @@
         <path class="letter-outline" d="M38 32 V73 M39 43 C42 27 66 29 66 43 C66 58 43 60 39 48" />
         <path class="letter-fill" d="M38 32 V73 M39 43 C42 27 66 29 66 43 C66 58 43 60 39 48" />
       </svg>
+      </span>
 
-      <svg class="logo-tile tile-e" viewBox="0 0 100 100" aria-hidden="true">
+      <span class="tile-entry tile-e">
+      <svg
+        class="logo-tile"
+        [class.bouncing]="activeTile === 'e'"
+        (pointerenter)="activateTile('e', $event)"
+        (pointerdown)="activateTile('e', $event)"
+        (pointerleave)="deactivateTile('e', $event)"
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="tile-gradient-e" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stop-color="#a43bf0" />
@@ -62,6 +101,7 @@
         <path class="letter-outline" d="M64 44 H38 C35 56 45 61 56 58 C60 57 63 55 65 52 M39 44 C43 31 60 31 64 41" />
         <path class="letter-fill" d="M64 44 H38 C35 56 45 61 56 58 C60 57 63 55 65 52 M39 44 C43 31 60 31 64 41" />
       </svg>
+      </span>
 
     </span>
     <svg class="collision-burst burst-one" viewBox="0 0 42 32" aria-hidden="true">
