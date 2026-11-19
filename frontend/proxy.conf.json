@@ -1,0 +1,13 @@
+{
+  "/api": {
+    "target": "http://localhost:5027",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/raceHub": {
+    "target": "http://localhost:5027",
+    "secure": false,
+    "changeOrigin": true,
+    "ws": true
+  }
+}

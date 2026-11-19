@@ -19,7 +19,7 @@ export class RaceService {
 
   constructor() {
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${environment.apiUrl}/raceHub`)
+      .withUrl(environment.hubUrl)
       .withAutomaticReconnect()
       .build();
 
