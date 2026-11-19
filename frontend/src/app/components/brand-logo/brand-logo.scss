@@ -2,7 +2,22 @@
   display: block;
 }
 
+.logo-replay {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid #ffd21f;
+    outline-offset: 6px;
+    border-radius: 12px;
+  }
+}
+
 .type-logo {
+  position: relative;
   display: flex;
   justify-content: center;
 }
@@ -11,6 +26,7 @@
   display: flex;
   align-items: center;
   gap: clamp(8px, 1.4vw, 14px);
+  position: relative;
 }
 
 .logo-tile {
@@ -20,17 +36,86 @@
   aspect-ratio: 1;
   overflow: visible;
   rotate: var(--rot);
+  opacity: 1;
+  translate: 0 0;
 
-  &.tile-t { --rot: -6deg; }
-  &.tile-y { --rot: 4deg; }
-  &.tile-p { --rot: -3deg; }
-  &.tile-e { --rot: 6deg; }
+  &.tile-t { --rot: -6deg; --entry-x: -40px; --entry-delay: 0ms; }
+  &.tile-y { --rot: 4deg; --entry-x: 40px; --entry-delay: 40ms; }
+  &.tile-p { --rot: -3deg; --entry-x: -40px; --entry-delay: 80ms; }
+  &.tile-e { --rot: 6deg; --entry-x: 40px; --entry-delay: 120ms; }
+}
+
+.intro-active .logo-tile {
+  animation: tile-arrive 350ms ease-out var(--entry-delay) both;
+}
+
+.collision-burst {
+  position: absolute;
+  top: -25px;
+  width: 24px;
+  height: 22px;
+  overflow: visible;
+  pointer-events: none;
+
+  &.burst-one { left: 24%; }
+  &.burst-two { left: 76%; }
+}
+
+.burst-line {
+  fill: none;
+  stroke: #ffd21f;
+  stroke-linecap: round;
+  stroke-width: 4px;
+
+  &:nth-child(1),
+  &:nth-child(3) {
+    --line-length: 14;
+    stroke-dasharray: 14;
+  }
+
+  &:nth-child(2) {
+    --line-length: 20;
+    stroke-dasharray: 20;
+  }
+}
+
+.intro-active .burst-line {
+  animation: burst-draw 450ms ease-out 350ms both;
+}
+
+.intro-active .burst-two .burst-line {
+  animation-delay: 420ms;
+}
+
+@keyframes tile-arrive {
+  from {
+    opacity: 0;
+    translate: var(--entry-x) 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes burst-draw {
+  from { stroke-dashoffset: var(--line-length); }
+  to { stroke-dashoffset: 0; }
 }
 
 .tile-base {
   fill: #6b1fa8;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .logo-tile,
+  .burst-line {
+    animation: none !important;
+    opacity: 1;
+    translate: 0 0;
+    stroke-dashoffset: 0;
+  }
+}
 .tile-face {
   stroke: #3d1060;
   stroke-linejoin: round;

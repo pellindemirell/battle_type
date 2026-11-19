@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component, inject } from '@angular/core';
 
 @Component({
   selector: 'app-brand-logo',
@@ -6,4 +6,18 @@ import { Component } from '@angular/core';
   templateUrl: './brand-logo.html',
   styleUrl: './brand-logo.scss'
 })
-export class BrandLogo {}
+export class BrandLogo {
+  private readonly changeDetector = inject(ChangeDetectorRef);
+
+  introActive = true;
+
+  replayIntro(): void {
+    this.introActive = false;
+    this.changeDetector.detectChanges();
+
+    requestAnimationFrame(() => {
+      this.introActive = true;
+      this.changeDetector.markForCheck();
+    });
+  }
+}
