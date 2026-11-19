@@ -15,13 +15,32 @@
         <button
           *ngFor="let option of difficultyOptions"
           type="button"
-          class="difficulty-option"
+          class="difficulty-card"
           [class.selected]="difficulty === option.value"
           [attr.aria-pressed]="difficulty === option.value"
+          [style.--ac]="option.accent"
+          [style.--lp]="option.selectedBase"
+          (pointermove)="setDifficultyTilt($event)"
+          (pointerleave)="resetDifficultyTilt($event)"
           (click)="difficulty = option.value"
         >
-          <strong>{{ option.label }}</strong>
-          <span>{{ option.description }}</span>
+          <span class="keycap-face">
+            <span class="difficulty-title">{{ option.label }}</span>
+            <span class="selected-badge" aria-hidden="true">✓</span>
+            <span class="difficulty-pips" aria-hidden="true">
+              <span
+                *ngFor="let pip of difficultyPips"
+                class="difficulty-pip"
+                [class.filled]="pip < option.pips"
+              ></span>
+            </span>
+            <span class="difficulty-range">{{ option.description }}</span>
+            <span class="difficulty-special">{{ option.specialCharacters }}</span>
+            <span class="difficulty-example">
+              <span class="example-label">Örnek</span>
+              <span class="example-word">{{ option.example }}</span>
+            </span>
+          </span>
         </button>
       </div>
 

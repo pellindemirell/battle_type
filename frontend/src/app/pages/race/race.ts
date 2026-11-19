@@ -35,6 +35,11 @@ interface DifficultyOption {
   value: RaceDifficulty;
   label: string;
   description: string;
+  specialCharacters: string;
+  example: string;
+  pips: number;
+  accent: string;
+  selectedBase: string;
 }
 
 @Component({
@@ -60,11 +65,48 @@ export class Race implements OnInit, OnDestroy {
   characterMode: RaceCharacterMode = 'full';
   roomSettings: RaceRoomSettings | null = null;
   readonly difficultyOptions: DifficultyOption[] = [
-    { value: 'easy', label: 'Kolay', description: '3–5 harf' },
-    { value: 'medium', label: 'Orta', description: '5–8 harf' },
-    { value: 'hard', label: 'Zor', description: '7–11 harf' },
-    { value: 'expert', label: 'Uzman', description: '10–17 harf' }
+    {
+      value: 'easy',
+      label: 'Kolay',
+      description: '3–5 harf',
+      specialCharacters: 'özel harf yok',
+      example: 'kedi',
+      pips: 1,
+      accent: '#34D399',
+      selectedBase: '#12795A'
+    },
+    {
+      value: 'medium',
+      label: 'Orta',
+      description: '5–8 harf',
+      specialCharacters: '0–2 özel harf',
+      example: 'çocuk',
+      pips: 2,
+      accent: '#FFD60A',
+      selectedBase: '#A88A00'
+    },
+    {
+      value: 'hard',
+      label: 'Zor',
+      description: '7–11 harf',
+      specialCharacters: 'en az 2 özel harf',
+      example: 'öğretmenlik',
+      pips: 3,
+      accent: '#FB923C',
+      selectedBase: '#B45309'
+    },
+    {
+      value: 'expert',
+      label: 'Uzman',
+      description: '10–17 harf',
+      specialCharacters: 'çok ekli, özel isim',
+      example: 'sürdürülebilir',
+      pips: 4,
+      accent: '#C084FC',
+      selectedBase: '#7E3FB5'
+    }
   ];
+  readonly difficultyPips = [0, 1, 2, 3];
   wrongKey: string | null = null;
   capsLockOn = false;
   opponentName = '';
@@ -335,6 +377,23 @@ export class Race implements OnInit, OnDestroy {
     return this.difficultyOptions.find(
       (option) => option.value === difficulty
     )?.label ?? difficulty;
+  }
+
+  setDifficultyTilt(event: PointerEvent): void {
+    const card = event.currentTarget as HTMLElement;
+    const bounds = card.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+
+    const horizontal = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const vertical = (event.clientY - bounds.top) / bounds.height - 0.5;
+    card.style.setProperty('--ry', `${horizontal * 20}deg`);
+    card.style.setProperty('--rx', `${vertical * -16}deg`);
+  }
+
+  resetDifficultyTilt(event: PointerEvent): void {
+    const card = event.currentTarget as HTMLElement;
+    card.style.removeProperty('--rx');
+    card.style.removeProperty('--ry');
   }
 
   private clearWrongKeyTimer(): void {
