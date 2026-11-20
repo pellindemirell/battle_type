@@ -19,6 +19,13 @@ describe('Race', () => {
     rematch: ReturnType<typeof vi.fn>;
   };
 
+  const settings = { difficulty: 'easy', wordCount: 30, characterMode: 'full' };
+
+  function receive(event: string, payload?: unknown): void {
+    const [, handler] = raceService.on.mock.calls.find(([name]) => name === event)!;
+    handler(payload);
+  }
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -50,8 +57,8 @@ describe('Race', () => {
   });
 
   it('shows the wrong key and sends only that key to the hub', () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
     component.raceStarted = true;
-    component.roomCode = 'ABCDE';
     component.targetText = 'cat';
     component.opponentName = 'Opponent';
     const event = new KeyboardEvent('keydown', {
@@ -93,7 +100,7 @@ describe('Race', () => {
     component.raceFinished = true;
     await component.requestRematch();
 
-    expect(raceService.setReady).toHaveBeenCalledWith('ABCDE');
+    expect(raceService.setReady).toHaveBeenCalledWith('ABCDE', true);
     expect(raceService.rematch).toHaveBeenCalledWith('ABCDE');
     expect(component.rematchRequested).toBe(true);
   });
@@ -231,31 +238,27 @@ describe('Race', () => {
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
   });
 
-  it('hides the text until an opponent joins and keeps characters grouped by word', () => {
-    component.targetText = 'first second';
-    expect(component.targetWords).toHaveLength(2);
+  it('gates the race text and typing until the server starts after the in-box countdown', () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
+    receive('CountdownStarted', 3);
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('.target-text-box .countdown-number').textContent)
+      .toContain('3');
     expect(fixture.nativeElement.querySelector('.target-text')).toBeNull();
+    component.onKeyDown(new KeyboardEvent('keydown', { key: 'f' }));
+    expect(raceService.keyPress).not.toHaveBeenCalled();
+
+    receive('CountdownCanceled');
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.waiting-text')?.textContent)
-      .toContain('Yazılacak Metin');
+      .toContain('Her iki oyuncu hazır olunca başlar');
 
-    const opponentFixture = TestBed.createComponent(Race);
-    const opponentComponent = opponentFixture.componentInstance;
-    opponentComponent.targetText = 'first second';
-    opponentComponent.opponentName = 'Opponent';
-    opponentFixture.detectChanges();
-
-    expect(opponentFixture.nativeElement.querySelector('.target-text')?.textContent)
-      .toContain('first');
-    const words = Array.from(
-      opponentFixture.nativeElement.querySelectorAll('.target-word')
-    ) as HTMLElement[];
-    expect(words).toHaveLength(2);
-    expect(words.map(word => word.textContent?.replace(/\u00a0/g, ' ').trim()))
-      .toEqual(['first', 'second']);
-    expect(words[0].querySelector('.next-key')?.textContent).toContain('f');
-    opponentFixture.destroy();
+    receive('RaceStarted', { text: 'first second' });
+    fixture.detectChanges();
+    expect(component.targetWords).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('.target-text')?.textContent).toContain('first');
+    expect(fixture.nativeElement.querySelector('.target-text .countdown-number')).toBeNull();
   });
 
   it('leaves the shared logo to the application shell', () => {

@@ -118,9 +118,9 @@ export class RaceService {
     );
   }
 
-  async setReady(roomCode: string): Promise<void> {
+  async setReady(roomCode: string, ready: boolean): Promise<void> {
     await this.connect();
-    await this.requireConnection().invoke('SetReady', roomCode);
+    await this.requireConnection().invoke('Ready', roomCode, ready);
   }
 
   async rematch(roomCode: string): Promise<void> {

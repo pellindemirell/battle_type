@@ -1,0 +1,49 @@
+.opponent-status {
+  color: #ff3ea5;
+  font-weight: 800;
+  text-shadow: 0 0 12px #ff3ea58c;
+  animation: ready-pulse 1.65s ease-in-out infinite alternate;
+}
+
+.opponent-status.opponent-ready {
+  color: #39ff14;
+  text-shadow: 0 0 12px #39ff1499;
+  animation: none;
+}
+
+.ready-button {
+  min-height: 56px;
+  min-width: min(100%, 184px);
+  &:is(:hover, :focus-visible):not(:disabled) {
+    animation: none;
+    transform: scale(1.06);
+  }
+}
+
+.ready-idle:not(:disabled) { animation: ready-pulse 1.65s ease-in-out infinite alternate; }
+@keyframes ready-pulse { from { opacity: .73; } to { opacity: 1; } }
+
+.countdown-overlay {
+  display: grid;
+  place-items: center;
+  min-height: 135px;
+}
+
+.countdown-number {
+  color: #ffd60a;
+  font-size: clamp(4rem, 14vw, 9rem);
+  font-weight: 900;
+  line-height: 1;
+  animation: countdown-pop 350ms ease-out;
+}
+
+@keyframes countdown-pop {
+  from { opacity: .35; transform: scale(.68); }
+  65% { transform: scale(1.12); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opponent-status, .ready-idle:not(:disabled), .countdown-number { animation: none; }
+  .ready-button:is(:hover, :focus-visible):not(:disabled) { transform: none; }
+}

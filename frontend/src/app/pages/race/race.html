@@ -1,5 +1,5 @@
 <div class="race-page">
-  <div class="setup" *ngIf="!targetText">
+  <div class="setup" *ngIf="!inRoom">
     <app-player-profile [profile]="profile" (profileChange)="updateProfile($event)" />
 
     <section class="room-options" aria-label="Yarış ayarları">
@@ -118,39 +118,44 @@
     </span>
   </div>
 
-  <div class="room-code-box" *ngIf="roomCode && !raceStarted && !raceFinished">
+  <div class="room-code-box" *ngIf="inRoom && roomCode && !raceStarted && !raceFinished">
     <span>Oda Kodu:</span>
     <strong>{{ roomCode }}</strong>
     <small>Bu kodu rakibine gönder</small>
   </div>
 
-  <div class="ready-controls" *ngIf="targetText && !raceStarted && !raceFinished">
-    <p *ngIf="!opponentName">Rakibin odaya katılması bekleniyor.</p>
-    <p *ngIf="opponentName">
-      {{ opponentName }}:
-      {{ opponentReady ? 'Hazır' : 'Henüz hazır değil' }}
+  <div class="ready-controls" *ngIf="inRoom && !raceStarted && !raceFinished">
+    <p class="opponent-status" [class.opponent-ready]="opponentReady" aria-live="polite">
+      {{ opponentReady ? 'Rakip HAZIR' : 'Rakip bekleniyor…' }}
     </p>
     <button
-      class="btn-primary"
+      type="button"
+      class="btn-primary ready-button"
+      [class.ready-idle]="!isReady && !!opponentName && !countdown"
+      [attr.aria-pressed]="isReady"
       (click)="setReady()"
-      [disabled]="isReady || !opponentName || reconnecting"
+      [disabled]="readyPending || !!countdown || !opponentName || reconnecting"
     >
-      {{ isReady ? 'Hazırsın, rakip bekleniyor…' : 'Hazırım' }}
+      {{ isReady ? 'Hazır ✓' : 'Hazırım' }}
     </button>
-  </div>
-
-  <div class="countdown-overlay" *ngIf="countdown > 0">
-    <div class="countdown-number">{{ countdown }}</div>
-    <p>Hazır ol…</p>
   </div>
 
   <p class="caps-lock-warning" *ngIf="capsLockOn">Caps Lock açık</p>
   <p class="reconnecting-warning" *ngIf="reconnecting">Yeniden bağlanıyor…</p>
 
-  <div class="race-content" *ngIf="targetText">
-    <div class="target-text-box" *ngIf="opponentName; else waitingForOpponent">
-      <h2>Yazılacak Metin</h2>
-      <p class="target-text">
+  <div class="race-content" *ngIf="inRoom && !raceFinished">
+    <div class="target-text-box">
+      <h2>Yazılacak metin</h2>
+      @if (countdown) {
+        <div class="countdown-overlay" role="status" aria-live="polite">
+          @for (digit of [countdown]; track digit) {
+            <strong class="countdown-number">{{ digit }}</strong>
+          }
+        </div>
+      } @else if (!raceStarted) {
+        <p class="waiting-text">Her iki oyuncu hazır olunca başlar</p>
+      }
+      <p class="target-text" *ngIf="raceStarted">
         <span *ngFor="let word of targetWords" class="target-word">
           <span
             *ngFor="let character of word.characters"
@@ -166,12 +171,6 @@
         </span>
       </p>
     </div>
-    <ng-template #waitingForOpponent>
-      <div class="target-text-box waiting-text" role="status">
-        <h2>Yazılacak Metin</h2>
-        <p>Rakibin katıldığında yazacağın metin burada gösterilecek! </p>
-      </div>
-    </ng-template>
 
     <p class="keyboard-hint" *ngIf="raceStarted && !raceFinished">
       Klavyeden yazmaya başla · Hata: {{ errors }} · Tuş: {{ keystrokes }}

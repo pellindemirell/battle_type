@@ -38,12 +38,9 @@ export interface RaceResult {
   players: RacePlayerResult[];
 }
 
-export interface RaceReadyStatus {
-  phase: 'waiting' | 'countdown' | 'running' | 'finished';
-  players: Array<{
-    id: string;
-    name: string;
-    avatarId: string;
-    ready: boolean;
-  }>;
+export interface RaceReadyPlayer {
+  id: string;
+  name: string;
+  avatarId: string;
+  ready: boolean;
 }

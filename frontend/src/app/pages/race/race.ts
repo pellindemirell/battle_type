@@ -24,7 +24,7 @@ import {
   RaceCharacterMode,
   RaceDifficulty,
   RacePlayerProgress,
-  RaceReadyStatus,
+  RaceReadyPlayer,
   RaceResult,
   RaceRoomSettings
 } from '../../models/race';
@@ -33,13 +33,12 @@ import { TypingEngine } from '../../services/typing-engine';
 
 interface RoomCreatedMessage {
   roomCode: string;
-  text: string;
   avatarId: string;
   settings: RaceRoomSettings;
 }
 
 interface PlayerJoinedMessage {
-  text: string;
+  roomCode: string;
   players: RacePlayerProgress[];
   settings: RaceRoomSettings;
 }
@@ -69,7 +68,7 @@ interface TargetTextWord {
   standalone: true,
   imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker],
   templateUrl: './race.html',
-  styleUrls: ['./race.scss', './race-avatars.scss']
+  styleUrls: ['./race.scss', './race-avatars.scss', './race-ready.scss']
 })
 export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
@@ -80,6 +79,7 @@ export class Race implements OnInit, OnDestroy {
   @ViewChild('difficultyRadioGroup') private difficultyRadioGroup?: ElementRef<HTMLDivElement>;
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
+  private countdownTimer?: ReturnType<typeof setInterval>;
   private difficultyTypingInterval?: ReturnType<typeof setInterval>;
   private reconnecting = false;
   private targetTextValue = '';
@@ -146,6 +146,7 @@ export class Race implements OnInit, OnDestroy {
   opponentProgress = 0;
   countdown = 0;
   isReady = false;
+  readyPending = false;
   opponentReady = false;
   rematchRequested = false;
   raceStarted = false;
@@ -153,6 +154,10 @@ export class Race implements OnInit, OnDestroy {
   isWinner = false;
   result: RaceResult | null = null;
   message = '';
+
+  get inRoom(): boolean {
+    return this.roomSettings !== null;
+  }
 
   get winningPlayer() {
     return this.result?.players.find((player) => player.id === this.result?.winnerId);
@@ -196,57 +201,59 @@ export class Race implements OnInit, OnDestroy {
       this.raceService.on('RoomCreated', (data: RoomCreatedMessage) => {
         this.roomCode = data.roomCode;
         this.roomAvatarId = avatarForId(data.avatarId).id;
-        this.targetText = data.text;
         this.roomSettings = data.settings;
         this.message = 'Rakibin bekleniyor.';
         this.changeDetector.markForCheck();
       }),
       this.raceService.on('PlayerJoined', (data: PlayerJoinedMessage) => {
-        this.targetText = data.text;
+        this.roomCode = data.roomCode;
         this.roomSettings = data.settings;
         this.updatePlayers(data.players);
         this.message = 'Rakip katıldı.';
         this.changeDetector.markForCheck();
       }),
-      this.raceService.on('RaceCountdown', (value: number) => {
-        this.countdown = value;
-        this.isReady = false;
-        this.opponentReady = false;
+      this.raceService.on('CountdownStarted', (seconds: number) => {
+        this.clearCountdown();
+        this.clearWrongKeyTimer();
+        this.countdown = seconds;
         this.raceFinished = false;
         this.raceStarted = false;
         this.result = null;
         this.isWinner = false;
-        this.typingEngine.reset(this.targetText);
+        this.targetText = '';
         this.myProgress = 0;
         this.opponentProgress = 0;
         this.wrongKey = null;
         this.rematchRequested = false;
+        const endsAt = Date.now() + seconds * 1000;
+        this.countdownTimer = setInterval(() => {
+          const remaining = Math.max(1, Math.ceil((endsAt - Date.now()) / 1000));
+          if (remaining !== this.countdown) {
+            this.countdown = remaining;
+            this.changeDetector.markForCheck();
+          }
+        }, 100);
         this.changeDetector.markForCheck();
       }),
-      this.raceService.on('ReadyStatus', (status: RaceReadyStatus) => {
+      this.raceService.on('CountdownCanceled', () => {
+        this.clearCountdown();
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('ReadyChanged', (players: RaceReadyPlayer[]) => {
         const connectionId = this.raceService.connectionId;
-        const me = status.players.find((player) => player.id === connectionId);
-        const opponent = status.players.find((player) => player.id !== connectionId);
+        const me = players.find((player) => player.id === connectionId);
+        const opponent = players.find((player) => player.id !== connectionId);
         this.isReady = me?.ready ?? false;
         this.opponentReady = opponent?.ready ?? false;
         this.opponentName = opponent?.name ?? '';
         this.opponentAvatarId = opponent?.avatarId ?? null;
         this.roomAvatarId = avatarForId(me?.avatarId ?? this.roomAvatarId).id;
-
-        if (status.phase === 'countdown') {
-          this.raceFinished = false;
-          this.result = null;
-          this.rematchRequested = false;
-        }
-
-        if (status.phase === 'finished')
-          this.raceStarted = false;
-
         this.changeDetector.markForCheck();
       }),
-      this.raceService.on('RaceStarted', () => {
+      this.raceService.on('RaceStarted', ({ text }: { text: string }) => {
+        this.clearCountdown();
+        this.targetText = text;
         this.raceStarted = true;
-        this.countdown = 0;
         this.isReady = false;
         this.opponentReady = false;
         this.message = 'Yarış başladı! Klavyeden yazmaya başla.';
@@ -289,6 +296,7 @@ export class Race implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+    this.clearCountdown();
     this.clearWrongKeyTimer();
     this.clearDifficultyTypingInterval();
   }
@@ -341,13 +349,14 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async setReady(): Promise<void> {
-    if (this.isReady || this.reconnecting) return;
-    this.isReady = true;
+    if (this.readyPending || this.countdown || this.reconnecting) return;
+    this.readyPending = true;
     try {
-      await this.raceService.setReady(this.roomCode);
-    } catch (err: any) {
-      this.isReady = false;
-      this.message = 'Hazır durumu gönderilemedi: ' + (err?.message ?? err);
+      await this.raceService.setReady(this.roomCode, !this.isReady);
+    } catch (error) {
+      this.message = 'Hazır durumu gönderilemedi: ' + (error instanceof Error ? error.message : error);
+    } finally {
+      this.readyPending = false;
       this.changeDetector.markForCheck();
     }
   }
@@ -415,6 +424,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   resetRace(): void {
+    this.clearCountdown();
     this.clearWrongKeyTimer();
     this.roomCode = '';
     this.targetText = '';
@@ -518,6 +528,12 @@ export class Race implements OnInit, OnDestroy {
       this.difficulty = option.value;
       this.changeDetector.markForCheck();
     }
+  }
+
+  private clearCountdown(): void {
+    clearInterval(this.countdownTimer);
+    this.countdownTimer = undefined;
+    this.countdown = 0;
   }
 
   private clearWrongKeyTimer(): void {
