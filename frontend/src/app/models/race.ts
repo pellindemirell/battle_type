@@ -39,6 +39,12 @@ export interface RaceResult {
   players: RacePlayerResult[];
 }
 
+export interface RaceChatMessage {
+  fromName: string;
+  text: string;
+  ts: string;
+}
+
 export interface RaceReadyPlayer {
   id: string;
   name: string;

@@ -22,6 +22,7 @@ import {
 } from '../../models/player-profile';
 import {
   RaceCharacterMode,
+  RaceChatMessage,
   RaceDifficulty,
   RacePlayerProgress,
   RaceReadyPlayer,
@@ -88,6 +89,14 @@ export class Race implements OnInit, OnDestroy {
   private localStart: number | null = null;
   readonly formatDuration = formatRaceDuration;
   elapsedMs = 0;
+  chatText = '';
+  chatError = '';
+  chatSending = false;
+  unreadChat = 0;
+  chatMessages: Array<RaceChatMessage & { own: boolean }> = [];
+  chatToast: RaceChatMessage | null = null;
+  private chatOpen = false;
+  private chatToastTimer?: ReturnType<typeof setTimeout>;
   encouragement = '';
   private encouragementTimer?: ReturnType<typeof setTimeout>;
   private readonly wpmSamples = new Map<number, number>();
@@ -284,6 +293,7 @@ export class Race implements OnInit, OnDestroy {
         this.message = 'Yarış başladı! Klavyeden yazmaya başla.';
         this.changeDetector.markForCheck();
       }),
+      this.raceService.on('MessageReceived', (message: RaceChatMessage) => this.receiveChat(message)),
       this.raceService.on('ProgressUpdated', (players: RacePlayerProgress[]) => {
         this.updatePlayers(players);
         this.changeDetector.markForCheck();
@@ -323,6 +333,7 @@ export class Race implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+    clearTimeout(this.chatToastTimer);
     this.clearRaceClock();
     this.clearCountdown();
     this.clearWrongKeyTimer();
@@ -401,8 +412,59 @@ export class Race implements OnInit, OnDestroy {
     }
   }
 
+  get chatEnabled(): boolean {
+    return this.inRoom && !this.raceStarted && !this.countdown && !this.reconnecting;
+  }
+
+  setChatOpen(open: boolean): void {
+    this.chatOpen = open;
+    if (open) this.unreadChat = 0;
+  }
+
+  async sendChat(): Promise<void> {
+    const text = this.chatText.trim();
+    if (!this.chatEnabled || this.chatSending || !text) return;
+    this.chatSending = true;
+    this.chatError = '';
+
+    const roomCode = this.roomCode;
+    try {
+      const message = await this.raceService.sendMessage(roomCode, text);
+      if (this.roomCode === roomCode && this.inRoom) {
+        this.addChatMessage(message, true);
+        this.chatText = '';
+      }
+    } catch (error) {
+      if (this.roomCode === roomCode)
+        this.chatError = error instanceof Error ? error.message : 'Mesaj gönderilemedi.';
+    } finally {
+      this.chatSending = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  private receiveChat(message: RaceChatMessage): void {
+    if (!this.inRoom) return;
+    this.addChatMessage(message, false);
+    if (!this.chatOpen || this.raceStarted) this.unreadChat++;
+    if (this.raceStarted) {
+      clearTimeout(this.chatToastTimer);
+      this.chatToast = message;
+      this.chatToastTimer = setTimeout(() => {
+        this.chatToast = null;
+        this.changeDetector.markForCheck();
+      }, 2500);
+    }
+    this.changeDetector.markForCheck();
+  }
+
+  private addChatMessage(message: RaceChatMessage, own: boolean): void {
+    this.chatMessages = [...this.chatMessages.slice(-49), { ...message, own }];
+  }
+
   @HostListener('window:keydown', ['$event'])
   onKeyDown(event: KeyboardEvent): void {
+    if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) return;
     const capsLockOn = event.getModifierState('CapsLock');
     if (capsLockOn !== this.capsLockOn) {
       this.capsLockOn = capsLockOn;
@@ -456,6 +518,13 @@ export class Race implements OnInit, OnDestroy {
   }
 
   resetRace(): void {
+    this.chatMessages = [];
+    this.chatToast = null;
+    this.chatError = '';
+    this.chatText = '';
+    this.chatOpen = false;
+    this.unreadChat = 0;
+    clearTimeout(this.chatToastTimer);
     this.clearRaceClock();
     this.elapsedMs = 0;
     this.clearCountdown();

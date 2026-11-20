@@ -78,6 +78,29 @@ describe('Race', () => {
       .toContain('x');
   });
 
+  it('disables chat during a race and never uses its input as a race key', async () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input[name="chatText"]') as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+
+    receive('RaceStarted', { text: 'a' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(input.disabled).toBe(true);
+    const event = new KeyboardEvent('keydown', { key: 'a', cancelable: true });
+    Object.defineProperty(event, 'target', { value: input });
+    component.onKeyDown(event);
+    expect(raceService.keyPress).not.toHaveBeenCalled();
+
+    receive('MessageReceived', { fromName: 'Ece', text: '<b>Merhaba</b>', ts: '2026-01-01T00:00:00Z' });
+    fixture.detectChanges();
+    const toast = fixture.nativeElement.querySelector('.chat-toast');
+    expect(toast.querySelector('b')).toBeNull();
+    expect(toast.textContent).toContain('<b>Merhaba</b>');
+    expect(component.unreadChat).toBe(1);
+  });
+
   it('updates Caps Lock state even before the race starts', () => {
     const event = new KeyboardEvent('keydown', { key: 'CapsLock' });
     Object.defineProperty(event, 'getModifierState', {

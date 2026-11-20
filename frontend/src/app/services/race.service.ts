@@ -4,7 +4,7 @@ import * as signalR from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { environment } from '../../environment';
 import { PlayerProfile } from '../models/player-profile';
-import { RaceCharacterMode, RaceDifficulty } from '../models/race';
+import { RaceCharacterMode, RaceChatMessage, RaceDifficulty } from '../models/race';
 
 @Injectable({
   providedIn: 'root'
@@ -126,6 +126,11 @@ export class RaceService {
   async rematch(roomCode: string): Promise<void> {
     await this.connect();
     await this.requireConnection().invoke('Rematch', roomCode);
+  }
+
+  async sendMessage(roomCode: string, text: string): Promise<RaceChatMessage> {
+    await this.connect();
+    return this.requireConnection().invoke<RaceChatMessage>('SendMessage', roomCode, text);
   }
 
   async keyPress(roomCode: string, key: string): Promise<void> {

@@ -9,6 +9,7 @@ public class TypingHub : Hub
     private static readonly TimeSpan MinimumKeyPressInterval =
         TimeSpan.FromMilliseconds(20);
 
+    private static readonly object LastChatMessageKey = new();
     private readonly RaceRoomStore _rooms;
     private readonly WordSelector _wordSelector;
     private readonly TimeProvider _timeProvider;
@@ -292,6 +293,37 @@ public class TypingHub : Hub
             avatarId = entry.Value.AvatarId,
             ready = entry.Value.Ready
         }).ToArray();
+
+    public async Task<RaceChatMessage> SendMessage(string? roomId, string? text)
+    {
+        var room = GetRoom(roomId);
+        text = text?.Trim();
+        if (string.IsNullOrEmpty(text) || text.EnumerateRunes().Skip(140).Any())
+            throw new HubException("Mesaj 1–140 karakter olmalı.");
+
+        var now = _timeProvider.GetUtcNow();
+        RaceChatMessage message;
+        lock (room.Lock)
+        {
+            if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
+                throw new HubException("Bu odanın oyuncusu değilsin.");
+            if (room.Phase is not (RacePhase.Waiting or RacePhase.Finished))
+                throw new HubException("Oyun sırasında mesaj gönderilemez.");
+
+            lock (Context.Items)
+            {
+                if (Context.Items.TryGetValue(LastChatMessageKey, out var last) &&
+                    last is DateTimeOffset sentAt && now - sentAt < TimeSpan.FromSeconds(1))
+                    throw new HubException("Mesaj göndermek için bir saniye bekle.");
+                Context.Items[LastChatMessageKey] = now;
+            }
+
+            message = new RaceChatMessage(player.Name, text, now);
+        }
+
+        await Clients.OthersInGroup(room.Code).SendAsync("MessageReceived", message);
+        return message;
+    }
 
     public async Task KeyPress(string? roomCode, string? key)
     {

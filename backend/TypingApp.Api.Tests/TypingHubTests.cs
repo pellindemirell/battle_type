@@ -186,6 +186,29 @@ public sealed class TypingHubTests
         throw new TimeoutException($"Expected {method}.");
     }
 
+    [Fact]
+    public async Task Chat_ValidatesMembershipLengthPhaseAndPerConnectionRate()
+    {
+        var fixture = CreateWaitingRoom();
+        var intruder = CreateHubForPlayer(fixture, "outsider");
+        await Assert.ThrowsAsync<HubException>(() => intruder.SendMessage(fixture.Room.Code, "Merhaba"));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "   "));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, new string('a', 141)));
+
+        var sent = await fixture.Hub.SendMessage(fixture.Room.Code, " <b>Merhaba</b> ");
+        Assert.Equal("<b>Merhaba</b>", sent.Text);
+        Assert.Equal("Player", sent.FromName);
+        var notification = Assert.Single(fixture.Clients.Messages, message => message.Method == "MessageReceived");
+        Assert.Equal(sent, notification.Arguments[0]);
+
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Yine"));
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(1));
+        await fixture.Hub.SendMessage(fixture.Room.Code, new string('a', 140));
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(1));
+        fixture.Room.Phase = RacePhase.Running;
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Yarış"));
+    }
+
     private static T ReadProperty<T>(object? payload, string name)
     {
         Assert.NotNull(payload);

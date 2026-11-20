@@ -104,6 +104,8 @@ public sealed record RacePlayerResult(
         new Dictionary<char, int>();
 }
 
+public sealed record RaceChatMessage(string FromName, string Text, DateTimeOffset Ts);
+
 public sealed record RaceResult(
     string WinnerId,
     IReadOnlyList<RacePlayerResult> Players);

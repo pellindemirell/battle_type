@@ -99,3 +99,40 @@
 @media (prefers-reduced-motion: reduce) {
   .encouragement strong { animation-name: encouragement-fade; }
 }
+
+
+.race-chat {
+  margin-block: 16px;
+  padding: 13px;
+  border: 1px solid #3d2563;
+  border-radius: 12px;
+  background: #160d24;
+
+  summary { width: fit-content; cursor: pointer; font-weight: 700; }
+  ol { display: grid; gap: 7px; margin-block: 10px; list-style: none; }
+  li { display: flex; flex-wrap: wrap; gap: 8px; overflow-wrap: anywhere; }
+  time { margin-inline-start: auto; color: #c9c0da; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; }
+  input { min-width: 0; flex: 1 1 180px; }
+  p { margin-block-start: 6px; }
+}
+
+.chat-unread {
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #ffd60a;
+  color: #190c26;
+}
+
+.chat-toast {
+  position: fixed;
+  inset: auto 12px 12px auto;
+  z-index: 4;
+  max-width: min(340px, calc(100% - 24px));
+  padding: 10px 14px;
+  border: 1px solid #a172cc;
+  border-radius: 12px;
+  background: #26143d;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

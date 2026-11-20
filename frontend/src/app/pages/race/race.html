@@ -209,6 +209,29 @@
     <app-race-keyboard [running]="raceStarted" [next]="expectedKey" />
   </div>
 
+  <details class="race-chat" *ngIf="inRoom" #chatPanel (toggle)="setChatOpen(chatPanel.open)">
+    <summary>Sohbet <span class="chat-unread" *ngIf="unreadChat" aria-label="Okunmamış mesaj">{{ unreadChat }}</span></summary>
+    <ol aria-label="Oda mesajları">
+      <li *ngFor="let message of chatMessages">
+        <b>{{ message.own ? 'Sen' : message.fromName }}</b>
+        <span>{{ message.text }}</span>
+        <time>{{ message.ts | date:'HH:mm' }}</time>
+      </li>
+    </ol>
+    <form (ngSubmit)="sendChat()">
+      <input name="chatText" [(ngModel)]="chatText" maxlength="140" aria-label="Sohbet mesajı"
+        placeholder="Mesaj yaz" [disabled]="!chatEnabled || chatSending" />
+      <button type="submit" class="btn-secondary" [disabled]="!chatEnabled || chatSending || !chatText.trim()">
+        Gönder
+      </button>
+    </form>
+    <p *ngIf="!chatEnabled">Sohbet yarış aralarında açık.</p>
+    <p *ngIf="chatError" role="status">{{ chatError }}</p>
+  </details>
+  <aside *ngIf="chatToast as message" class="chat-toast" role="status">
+    <strong>{{ message.fromName }}</strong> {{ message.text }}
+  </aside>
+
   <div class="finish-screen" *ngIf="raceFinished && result">
     <div class="trophy">🏆</div>
     <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
