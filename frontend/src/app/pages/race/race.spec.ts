@@ -16,7 +16,7 @@ describe('Race', () => {
     joinRoom: ReturnType<typeof vi.fn>;
     keyPress: ReturnType<typeof vi.fn>;
     setReady: ReturnType<typeof vi.fn>;
-    rematch: ReturnType<typeof vi.fn>;
+    requestRematch: ReturnType<typeof vi.fn>;
   };
 
   const settings = { difficulty: 'easy', wordCount: 30, characterMode: 'full' };
@@ -43,7 +43,7 @@ describe('Race', () => {
       joinRoom: vi.fn().mockResolvedValue(undefined),
       keyPress: vi.fn().mockResolvedValue(undefined),
       setReady: vi.fn().mockResolvedValue(undefined),
-      rematch: vi.fn().mockResolvedValue(undefined)
+      requestRematch: vi.fn().mockResolvedValue(undefined)
     };
 
     await TestBed.configureTestingModule({
@@ -124,8 +124,7 @@ describe('Race', () => {
     await component.requestRematch();
 
     expect(raceService.setReady).toHaveBeenCalledWith('ABCDE', true);
-    expect(raceService.rematch).toHaveBeenCalledWith('ABCDE');
-    expect(component.rematchRequested).toBe(true);
+    expect(raceService.requestRematch).toHaveBeenCalledWith('ABCDE', 3);
   });
 
   it('creates a room with the selected difficulty, length, and character mode', async () => {

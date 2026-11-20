@@ -173,11 +173,11 @@ public sealed class TypingHubTests
         return fixture;
     }
 
-    private static async Task<SentMessage> WaitForMessage(HubFixture fixture, string method)
+    private static async Task<SentMessage> WaitForMessage(HubFixture fixture, string method, int occurrence = 1)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var message = fixture.Clients.Messages.FirstOrDefault(item => item.Method == method);
+            var message = fixture.Clients.Messages.Where(item => item.Method == method).ElementAtOrDefault(occurrence - 1);
             if (message is not null)
                 return message;
             await Task.Delay(10);
@@ -207,6 +207,96 @@ public sealed class TypingHubTests
         fixture.TimeProvider.Advance(TimeSpan.FromSeconds(1));
         fixture.Room.Phase = RacePhase.Running;
         await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Yarış"));
+    }
+
+    [Fact]
+    public async Task Rematch_RequiresFinishedRaceAndOneValidRequest()
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RequestRematch(fixture.Room.Code, 3));
+
+        fixture.Room.Phase = RacePhase.Finished;
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RequestRematch(fixture.Room.Code, 2));
+        await fixture.Hub.RequestRematch(fixture.Room.Code, 3);
+        await Assert.ThrowsAsync<HubException>(() => opponent.RequestRematch(fixture.Room.Code, 5));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RespondRematch(fixture.Room.Code, true));
+        await fixture.Hub.CancelRematch(fixture.Room.Code);
+    }
+
+    [Theory]
+    [InlineData("rejected")]
+    [InlineData("expired")]
+    public async Task Rematch_DeclineAndExpiryLeaveTheRaceFinished(string reason)
+    {
+        var fixture = CreateWaitingRoom();
+        fixture.Room.Phase = RacePhase.Finished;
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.RequestRematch(fixture.Room.Code, 3);
+
+        if (reason == "rejected")
+            await opponent.RespondRematch(fixture.Room.Code, false);
+        else
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(30));
+
+        var response = await WaitForMessage(fixture, "RematchDeclined");
+        Assert.Equal(reason, ReadProperty<string>(response.Arguments[0], "reason"));
+        Assert.Null(fixture.Room.Rematch);
+        Assert.Null(fixture.Room.Series);
+        Assert.Equal(RacePhase.Finished, fixture.Room.Phase);
+        await Assert.ThrowsAsync<HubException>(() => opponent.RespondRematch(fixture.Room.Code, true));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Rematch_AcceptanceAndRoundResultsPreserveWinningScore(int rounds)
+    {
+        var fixture = CreateWaitingRoom();
+        fixture.Room.Phase = RacePhase.Finished;
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.RequestRematch(fixture.Room.Code, rounds);
+        await opponent.RespondRematch(fixture.Room.Code, true);
+
+        var accepted = await WaitForMessage(fixture, "RematchAccepted");
+        Assert.Null(accepted.Arguments[0]!.GetType().GetProperty("text"));
+        var initial = ReadProperty<RaceSeriesSnapshot>(accepted.Arguments[0], "series");
+        Assert.Equal(rounds, initial.Total);
+        Assert.Equal(1, initial.Current);
+        Assert.All(initial.Wins.Values, score => Assert.Equal(0, score));
+
+        for (var round = 1; round <= rounds; round++)
+        {
+            Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+            Assert.NotEqual("a", fixture.Room.Text);
+            fixture.Room.Text = "a";
+            await fixture.Hub.Ready(fixture.Room.Code, true);
+            await opponent.Ready(fixture.Room.Code, true);
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(3));
+            await WaitForMessage(fixture, "RaceStarted", round);
+            var roundWinner = round == 2 ? opponent : fixture.Hub;
+            await roundWinner.KeyPress(fixture.Room.Code, "a");
+            var finished = await WaitForMessage(fixture, "RaceFinished", round);
+            var result = Assert.IsType<RaceResult>(finished.Arguments[0]);
+            Assert.NotNull(result.Series);
+            Assert.Equal(round, result.Series.Current);
+            Assert.Equal(round, result.Series.Wins.Values.Sum());
+
+            if (round < rounds)
+            {
+                var next = await WaitForMessage(fixture, "RoundPrepared", round);
+                Assert.Null(next.Arguments[0]!.GetType().GetProperty("text"));
+                Assert.Null(result.Series.WinnerId);
+            }
+            else
+            {
+                Assert.Equal("player-1", result.Series.WinnerId);
+                Assert.Equal(rounds == 1 ? 1 : 2, result.Series.Wins["player-1"]);
+                Assert.Equal(RacePhase.Finished, fixture.Room.Phase);
+            }
+        }
     }
 
     private static T ReadProperty<T>(object? payload, string name)

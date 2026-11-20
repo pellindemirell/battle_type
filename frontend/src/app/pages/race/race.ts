@@ -27,7 +27,9 @@ import {
   RacePlayerProgress,
   RaceReadyPlayer,
   RaceResult,
-  RaceRoomSettings
+  RaceRoomSettings,
+  RaceSeries,
+  RematchOffer
 } from '../../models/race';
 import { RaceService } from '../../services/race.service';
 import { TypingEngine } from '../../services/typing-engine';
@@ -72,7 +74,7 @@ interface TargetTextWord {
   standalone: true,
   imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker, RaceKeyboard],
   templateUrl: './race.html',
-  styleUrls: ['./race.scss', './race-avatars.scss', './race-ready.scss']
+  styleUrls: ['./race.scss', './race-avatars.scss', './race-ready.scss', './race-rematch.scss']
 })
 export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
@@ -82,6 +84,7 @@ export class Race implements OnInit, OnDestroy {
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   @ViewChild('difficultyRadioGroup') private difficultyRadioGroup?: ElementRef<HTMLDivElement>;
   @ViewChild(RaceKeyboard) private keyboard?: RaceKeyboard;
+  @ViewChild('matchDialog') private matchDialog?: ElementRef<HTMLDialogElement>;
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
   private countdownTimer?: ReturnType<typeof setInterval>;
@@ -172,6 +175,14 @@ export class Race implements OnInit, OnDestroy {
   readyPending = false;
   opponentReady = false;
   rematchRequested = false;
+  rematchRounds = 3;
+  rematchOffer: RematchOffer | null = null;
+  rematchNotice = '';
+  dialogBusy = false;
+  dialogMode: 'request' | 'offer' | 'round' | null = null;
+  series: RaceSeries | null = null;
+  roundResult: RaceResult | null = null;
+  private rematchNoticeTimer?: ReturnType<typeof setTimeout>;
   raceStarted = false;
   raceFinished = false;
   isWinner = false;
@@ -180,6 +191,19 @@ export class Race implements OnInit, OnDestroy {
 
   get inRoom(): boolean {
     return this.roomSettings !== null;
+  }
+
+  get mySeriesWins(): number {
+    return this.series?.wins[this.raceService.connectionId ?? ''] ?? 0;
+  }
+
+  get opponentSeriesWins(): number {
+    return Object.entries(this.series?.wins ?? {})
+      .find(([id]) => id !== this.raceService.connectionId)?.[1] ?? 0;
+  }
+
+  playerName(result: RaceResult, id: string): string {
+    return result.players.find(player => player.id === id)?.name ?? 'Bilinmeyen oyuncu';
   }
 
   get winningPlayer() {
@@ -308,6 +332,43 @@ export class Race implements OnInit, OnDestroy {
         this.opponentReady = false;
         this.rematchRequested = false;
         this.isWinner = result.winnerId === this.raceService.connectionId;
+        this.series = result.series ?? null;
+        if (this.series && !this.series.winnerId && this.series.current < this.series.total) {
+          this.roundResult = result;
+          this.openMatchDialog('round');
+        }
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RematchRequested', (offer: RematchOffer) => {
+        if (!this.inRoom || !this.raceFinished) return;
+        this.rematchOffer = offer;
+        this.rematchRequested = offer.fromId === this.raceService.connectionId;
+        if (!this.rematchRequested) this.openMatchDialog('offer');
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RematchAccepted', ({ series }: { series: RaceSeries }) => {
+        if (!this.inRoom) return;
+        this.closeMatchDialog();
+        this.prepareRound(series);
+      }),
+      this.raceService.on('RematchDeclined', ({ reason }: { reason: string }) => {
+        if (this.rematchRequested) {
+          this.showRematchNotice(reason === 'expired' ? 'Rövanş isteğinin süresi doldu.'
+            : reason === 'canceled' ? 'Rövanş isteği iptal edildi.'
+            : reason === 'disconnected' ? 'Rakibin bağlantısı kesildi.' : 'Rakip rövanş isteğini reddetti.');
+        }
+        this.rematchRequested = false;
+        this.rematchOffer = null;
+        if (this.dialogMode === 'offer') this.closeMatchDialog();
+        this.changeDetector.markForCheck();
+      }),
+      this.raceService.on('RoundPrepared', ({ series }: { series: RaceSeries }) => {
+        if (this.inRoom) this.prepareRound(series);
+      }),
+      this.raceService.on('SeriesCanceled', () => {
+        this.series = null;
+        this.roundResult = null;
+        if (this.dialogMode === 'round') this.closeMatchDialog();
         this.changeDetector.markForCheck();
       }),
       this.raceService.on('PlayerDisconnected', (data: string) => {
@@ -333,6 +394,7 @@ export class Race implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+    clearTimeout(this.rematchNoticeTimer);
     clearTimeout(this.chatToastTimer);
     this.clearRaceClock();
     this.clearCountdown();
@@ -388,7 +450,7 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async setReady(): Promise<void> {
-    if (this.readyPending || this.countdown || this.reconnecting) return;
+    if (this.readyPending || this.countdown || this.roundResult || this.reconnecting) return;
     this.readyPending = true;
     try {
       await this.raceService.setReady(this.roomCode, !this.isReady);
@@ -400,16 +462,108 @@ export class Race implements OnInit, OnDestroy {
     }
   }
 
+  openRematchDialog(): void {
+    if (!this.raceFinished || this.reconnecting || this.rematchRequested) return;
+    this.rematchRounds = 3;
+    this.openMatchDialog('request');
+  }
+
   async requestRematch(): Promise<void> {
-    if (this.rematchRequested || this.reconnecting) return;
-    this.rematchRequested = true;
+    if (this.dialogBusy || this.reconnecting || !this.raceFinished) return;
+    this.dialogBusy = true;
     try {
-      await this.raceService.rematch(this.roomCode);
-    } catch (err: any) {
-      this.rematchRequested = false;
-      this.message = 'Rövanş isteği gönderilemedi: ' + (err?.message ?? err);
+      await this.raceService.requestRematch(this.roomCode, this.rematchRounds);
+      if (this.dialogMode === 'request') this.closeMatchDialog();
+    } catch (error) {
+      this.showRematchNotice(error instanceof Error ? error.message : 'Rövanş isteği gönderilemedi.');
+    } finally {
+      this.dialogBusy = false;
       this.changeDetector.markForCheck();
     }
+  }
+
+  async respondRematch(accept: boolean): Promise<void> {
+    if (!this.rematchOffer || this.dialogBusy || this.reconnecting) return;
+    this.dialogBusy = true;
+    try {
+      await this.raceService.respondRematch(this.roomCode, accept);
+    } catch (error) {
+      this.showRematchNotice(error instanceof Error ? error.message : 'Yanıt gönderilemedi.');
+    } finally {
+      this.dialogBusy = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async cancelRematch(): Promise<void> {
+    if (!this.rematchRequested || this.dialogBusy || this.reconnecting) return;
+    this.dialogBusy = true;
+    try {
+      await this.raceService.cancelRematch(this.roomCode);
+    } catch (error) {
+      this.showRematchNotice(error instanceof Error ? error.message : 'İstek iptal edilemedi.');
+    } finally {
+      this.dialogBusy = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  onMatchDialogCancel(event: Event): void {
+    event.preventDefault();
+    if (this.dialogMode === 'offer') void this.respondRematch(false);
+    else if (this.dialogMode === 'round') this.dismissRound();
+    else if (!this.dialogBusy) this.closeMatchDialog();
+  }
+
+  dismissRound(): void {
+    if (this.raceFinished) return;
+    this.roundResult = null;
+    this.closeMatchDialog();
+  }
+
+  private openMatchDialog(mode: 'request' | 'offer' | 'round'): void {
+    this.dialogMode = mode;
+    this.changeDetector.detectChanges();
+    const dialog = this.matchDialog?.nativeElement;
+    if (dialog && !dialog.open) dialog.showModal?.();
+    else dialog?.querySelector<HTMLElement>('[autofocus]')?.focus();
+  }
+
+  private closeMatchDialog(): void {
+    this.matchDialog?.nativeElement.close?.();
+    this.dialogMode = null;
+  }
+
+  private showRematchNotice(message: string): void {
+    clearTimeout(this.rematchNoticeTimer);
+    this.rematchNotice = message;
+    this.rematchNoticeTimer = setTimeout(() => {
+      this.rematchNotice = '';
+      this.changeDetector.markForCheck();
+    }, 4200);
+    this.changeDetector.markForCheck();
+  }
+
+  private prepareRound(series: RaceSeries): void {
+    this.series = series;
+    this.clearCountdown();
+    this.clearRaceClock();
+    this.clearWrongKeyTimer();
+    this.elapsedMs = 0;
+    this.targetText = '';
+    this.myProgress = 0;
+    this.opponentProgress = 0;
+    this.wrongKey = null;
+    this.isReady = false;
+    this.opponentReady = false;
+    this.raceStarted = false;
+    this.raceFinished = false;
+    this.isWinner = false;
+    this.result = null;
+    this.rematchRequested = false;
+    this.rematchOffer = null;
+    this.message = '';
+    this.changeDetector.markForCheck();
   }
 
   get chatEnabled(): boolean {
@@ -518,6 +672,12 @@ export class Race implements OnInit, OnDestroy {
   }
 
   resetRace(): void {
+    clearTimeout(this.rematchNoticeTimer);
+    this.closeMatchDialog();
+    this.series = null;
+    this.roundResult = null;
+    this.rematchOffer = null;
+    this.rematchNotice = '';
     this.chatMessages = [];
     this.chatToast = null;
     this.chatError = '';

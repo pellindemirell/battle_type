@@ -123,9 +123,19 @@ export class RaceService {
     await this.requireConnection().invoke('Ready', roomCode, ready);
   }
 
-  async rematch(roomCode: string): Promise<void> {
+  async requestRematch(roomCode: string, rounds: number): Promise<void> {
     await this.connect();
-    await this.requireConnection().invoke('Rematch', roomCode);
+    await this.requireConnection().invoke('RequestRematch', roomCode, rounds);
+  }
+
+  async respondRematch(roomCode: string, accept: boolean): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('RespondRematch', roomCode, accept);
+  }
+
+  async cancelRematch(roomCode: string): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('CancelRematch', roomCode);
   }
 
   async sendMessage(roomCode: string, text: string): Promise<RaceChatMessage> {

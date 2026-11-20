@@ -108,6 +108,10 @@
 
   <p class="status-message" role="status" *ngIf="message">{{ message }}</p>
 
+  <p class="series-score" *ngIf="series as score">
+    Tur {{ score.current }}/{{ score.total }} · Sen {{ mySeriesWins }} – Rakip {{ opponentSeriesWins }}
+  </p>
+
   <div class="room-settings" *ngIf="roomSettings">
     <span class="difficulty-badge">
       {{ difficultyLabel(roomSettings.difficulty) }}
@@ -232,13 +236,17 @@
     <strong>{{ message.fromName }}</strong> {{ message.text }}
   </aside>
 
-  <div class="finish-screen" *ngIf="raceFinished && result">
+  <div class="finish-screen" *ngIf="raceFinished && result && !roundResult">
     <div class="trophy">🏆</div>
     <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
     <h2 class="player-identity winner-identity">
       <app-player-avatar *ngIf="winningPlayer as winner" [avatarId]="winner.avatarId" />
       Kazanan: {{ winningPlayer?.name ?? 'Bilinmeyen oyuncu' }} — {{ formatDuration(winningPlayer?.durationMs) }}
     </h2>
+
+    <p class="series-score" *ngIf="series?.winnerId && (series?.total ?? 0) > 1">
+      Seri kazananı: {{ playerName(result, series!.winnerId!) }}
+    </p>
 
     <div class="results-table-wrapper">
       <table class="results-table">
@@ -275,12 +283,48 @@
     </div>
 
     <button class="btn-primary" (click)="resetRace()">Tekrar Oyna</button>
-    <button
-      class="btn-secondary"
-      (click)="requestRematch()"
-      [disabled]="rematchRequested || reconnecting"
-    >
-      {{ rematchRequested ? 'Rakip bekleniyor…' : 'Rövanş iste' }}
-    </button>
+    @if (rematchRequested) {
+      <span role="status">Bekleniyor…</span>
+      <button type="button" class="btn-secondary" (click)="cancelRematch()" [disabled]="dialogBusy || reconnecting">
+        İsteği iptal et
+      </button>
+    } @else {
+      <button type="button" class="btn-secondary" (click)="openRematchDialog()" [disabled]="reconnecting || !opponentName">
+        Rövanş iste
+      </button>
+    }
   </div>
+
+  <dialog #matchDialog class="match-dialog" aria-modal="true" aria-labelledby="match-dialog-title"
+    (cancel)="onMatchDialogCancel($event)">
+    @if (dialogMode === 'request') {
+      <h2 id="match-dialog-title">Rövanş iste</h2>
+      <form (ngSubmit)="requestRematch()">
+        <label for="rematch-rounds">Tur sayısı</label>
+        <select id="rematch-rounds" name="rounds" [(ngModel)]="rematchRounds" autofocus>
+          <option [ngValue]="1">1 tur</option>
+          <option [ngValue]="3">3 tur</option>
+          <option [ngValue]="5">5 tur</option>
+        </select>
+        <div class="match-dialog-actions">
+          <button type="submit" class="btn-primary" [disabled]="dialogBusy || reconnecting">İsteği gönder</button>
+          <button type="button" class="btn-secondary" [disabled]="dialogBusy" (click)="onMatchDialogCancel($event)">Vazgeç</button>
+        </div>
+      </form>
+    } @else if (dialogMode === 'offer' && rematchOffer) {
+      <h2 id="match-dialog-title">{{ rematchOffer.fromName }} rövanş istiyor — {{ rematchOffer.rounds }} tur</h2>
+      <div class="match-dialog-actions">
+        <button type="button" class="btn-primary" [disabled]="dialogBusy || reconnecting" (click)="respondRematch(true)">Kabul</button>
+        <button type="button" class="btn-secondary" [disabled]="dialogBusy || reconnecting" (click)="respondRematch(false)" autofocus>Reddet</button>
+      </div>
+    } @else if (dialogMode === 'round' && roundResult) {
+      <h2 id="match-dialog-title">Tur {{ roundResult.series?.current }} tamamlandı</h2>
+      <p>Kazanan: {{ playerName(roundResult, roundResult.winnerId) }}</p>
+      <div class="match-dialog-actions">
+        <button type="button" class="btn-primary" (click)="dismissRound()" [disabled]="raceFinished" autofocus>Tamam</button>
+      </div>
+    }
+    <p *ngIf="rematchNotice" role="status">{{ rematchNotice }}</p>
+  </dialog>
+  <aside class="chat-toast rematch-toast" *ngIf="rematchNotice && !dialogMode" role="status">{{ rematchNotice }}</aside>
 </div>

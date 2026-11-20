@@ -26,7 +26,7 @@ public sealed class RoomState
 
     public string Code { get; init; } = "";
 
-    public string Text { get; init; } = "";
+    public string Text { get; set; } = "";
 
     public RoomSettings Settings { get; init; } = RoomSettings.Default;
 
@@ -42,6 +42,8 @@ public sealed class RoomState
     public RacePhase Phase { get; set; } = RacePhase.Waiting;
 
     public CancellationTokenSource? CountdownCancellation { get; set; }
+    public PendingRematch? Rematch { get; set; }
+    public RaceSeriesState? Series { get; set; }
 }
 
 public enum RacePhase
@@ -108,4 +110,25 @@ public sealed record RaceChatMessage(string FromName, string Text, DateTimeOffse
 
 public sealed record RaceResult(
     string WinnerId,
-    IReadOnlyList<RacePlayerResult> Players);
+    IReadOnlyList<RacePlayerResult> Players)
+{
+    public RaceSeriesSnapshot? Series { get; init; }
+}
+
+public sealed record PendingRematch(string FromId, int Rounds, DateTimeOffset ExpiresAt)
+{
+    public CancellationTokenSource Cancellation { get; } = new();
+}
+
+public sealed record RaceSeriesSnapshot(
+    int Total, int Current, IReadOnlyDictionary<string, int> Wins, string? WinnerId);
+
+public sealed class RaceSeriesState(int total, IEnumerable<string> players)
+{
+    public int Total { get; } = total;
+    public int Current { get; set; } = 1;
+    public Dictionary<string, int> Wins { get; } = players.ToDictionary(id => id, _ => 0, StringComparer.Ordinal);
+    public string? WinnerId { get; set; }
+
+    public RaceSeriesSnapshot Snapshot() => new(Total, Current, new Dictionary<string, int>(Wins), WinnerId);
+}

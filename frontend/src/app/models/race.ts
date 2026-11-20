@@ -37,6 +37,20 @@ export interface RacePlayerResult {
 export interface RaceResult {
   winnerId: string;
   players: RacePlayerResult[];
+  series?: RaceSeries | null;
+}
+
+export interface RaceSeries {
+  total: number;
+  current: number;
+  wins: Record<string, number>;
+  winnerId: string | null;
+}
+
+export interface RematchOffer {
+  fromId: string;
+  fromName: string;
+  rounds: number;
 }
 
 export interface RaceChatMessage {
