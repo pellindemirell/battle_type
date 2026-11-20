@@ -15,6 +15,51 @@ const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
   ].find(path => existsSync(path));
 
+function inside(box, outer) {
+  return box.left >= outer.left - 1 && box.right <= outer.right + 1 &&
+    box.top >= outer.top - 1 && box.bottom <= outer.bottom + 1;
+}
+
+function assertNoOverlap(boxes, label) {
+  for (const [index, first] of boxes.entries()) {
+    for (const second of boxes.slice(index + 1)) {
+      assert.ok(
+        first.right <= second.left + 1 || second.right <= first.left + 1 ||
+        first.bottom <= second.top + 1 || second.bottom <= first.top + 1,
+        `Two ${label} boxes intersect`
+      );
+    }
+  }
+}
+
+function measureSetup(page) {
+  return page.evaluate(() => {
+    const rect = element => element.getBoundingClientRect().toJSON();
+    const profile = document.querySelector('.profile-panel');
+    const settings = document.querySelector('.room-options');
+    const examplesFit = Array.from(document.querySelectorAll('.example-word')).every(word => {
+      const range = document.createRange();
+      range.selectNodeContents(word);
+      const face = word.closest('.keycap-face').getBoundingClientRect();
+      const lines = Array.from(range.getClientRects());
+      return lines.length === 1 && lines.every(line =>
+        line.left >= face.left - 1 && line.right <= face.right + 1
+      );
+    });
+    return {
+      logo: rect(document.querySelector('.brand-header .logo-canvas')),
+      profile: rect(profile),
+      settings: rect(settings),
+      avatars: Array.from(profile.querySelectorAll('.avatar-frame'), rect),
+      cards: Array.from(settings.querySelectorAll('.difficulty-card'), rect),
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollbarWidth: getComputedStyle(document.documentElement, '::-webkit-scrollbar').width,
+      examplesFit
+    };
+  });
+}
+
 let server;
 let browser;
 
@@ -62,20 +107,73 @@ try {
   await logo.waitFor({ state: 'visible' });
   await playerName.waitFor({ state: 'visible' });
 
-  for (const width of [320, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    const [logoBox, inputBox] = await Promise.all([
-      logo.boundingBox(),
-      playerName.boundingBox()
-    ]);
+  await page.locator('.setup').evaluate(async panel => {
+    await Promise.allSettled(panel.getAnimations().map(animation => animation.finished));
+  });
+  const renderedFonts = await page.evaluate(async () =>
+    await Promise.all(['Space Grotesk', 'Inter', 'JetBrains Mono'].map(async family =>
+      (await document.fonts.load(`600 16px "${family}"`, 'Iıİi Ğğ Şş Çç Üü Öö')).length
+    ))
+  );
+  assert.ok(renderedFonts.every(count => count >= 2), 'Each font must load both Turkish subsets');
 
-    assert.ok(logoBox && inputBox, `Expected logo and player input at ${width}px`);
-    assert.ok(
-      logoBox.y + logoBox.height < inputBox.y,
-      `Logo bottom (${logoBox.y + logoBox.height}) must be above player input top (${inputBox.y}) at ${width}px`
-    );
-    console.log(`Logo/input separation passed at ${width}px`);
+  for (const width of [320, 375, 768, 1024, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await measureSetup(page);
+
+    assert.equal(layout.scrollWidth, layout.clientWidth, `Horizontal overflow at ${width}px`);
+    assert.ok(layout.logo.bottom < layout.profile.top, `Logo overlaps the profile at ${width}px`);
+    for (const box of [layout.logo, layout.profile, layout.settings]) {
+      assert.ok(
+        Math.abs((box.left + box.right) / 2 - layout.clientWidth / 2) <= 1,
+        `Content is not centered at ${width}px`
+      );
+    }
+    assert.equal(layout.avatars.length, 12);
+    assert.ok(layout.avatars.every(box => inside(box, layout.profile)), 'Avatars must fit the panel');
+    assert.ok(layout.cards.every(box => inside(box, layout.settings)), 'Cards must fit the panel');
+    assert.ok(layout.examplesFit, `Difficulty examples are clipped at ${width}px`);
+    assertNoOverlap(layout.avatars, 'avatar');
+    assertNoOverlap(layout.cards, 'difficulty card');
+    assert.equal(new Set(layout.cards.map(box => Math.round(box.width))).size, 1);
+    assert.equal(new Set(layout.cards.map(box => Math.round(box.height))).size, 1);
+    assert.equal(new Set(layout.cards.map(box => box.x)).size, width >= 1024 ? 4 : 2);
+
+    if (width <= 375) {
+      assert.equal(layout.scrollbarWidth, '8px');
+      const scrollTop = await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        return window.scrollY;
+      });
+      assert.ok(scrollTop > 0, 'The page must scroll naturally');
+      await page.evaluate(() => window.scrollTo(0, 0));
+    }
+    console.log(`Centered, readable and overflow-free at ${width}px`);
   }
+
+  const nicknameHint = page.locator('#nickname-hint');
+  await playerName.fill('A');
+  assert.equal(await playerName.getAttribute('aria-invalid'), 'true');
+  assert.match(await nicknameHint.innerText(), /En az 3/);
+  await playerName.fill('Çağrı7!');
+  assert.equal(await playerName.inputValue(), 'Çağrı');
+  assert.match(await nicknameHint.innerText(), /Yalnızca harf ve boşluk/);
+  await playerName.fill('abcdefghijklmnopq');
+  assert.equal(await playerName.inputValue(), 'abcdefghijklmnop');
+  assert.match(await nicknameHint.innerText(), /En fazla 16/);
+  await playerName.fill('Şeyma');
+  assert.equal(await page.locator('.nickname-count').innerText(), '5 / 16');
+
+  const selectedAvatar = page.locator('input[name="player-avatar"]:checked');
+  await selectedAvatar.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await selectedAvatar.count(), 1);
+  assert.equal(await selectedAvatar.inputValue(), 'avatar-02');
+  assert.equal(
+    await page.locator('input[name="player-avatar"]:checked + .avatar-frame .avatar-check').innerText(),
+    '✓'
+  );
+  console.log('Turkish fonts, live nickname validation and keyboard avatar selection passed');
 
   const cards = page.locator('[role="radiogroup"] [role="radio"]');
   assert.equal(await cards.count(), 4, 'Expected four difficulty radio cards');

@@ -101,8 +101,9 @@ try {
   assert.equal(
     await secondPage.locator('input[name="player-avatar"]:checked').inputValue(), 'avatar-02'
   );
-  await secondPage.getByPlaceholder('Oda kodu (5 hane)').fill(roomCode);
-  await secondPage.getByRole('button', { name: 'Yarışmaya Katıl' }).click();
+  const joinCode = secondPage.getByPlaceholder('Oda kodu (5 hane)');
+  await joinCode.fill(roomCode);
+  await joinCode.press('Enter');
 
   await Promise.all([
     waitForOpponent(firstPage, 'Player Two'),
@@ -157,6 +158,14 @@ try {
     assert.ok(await hero.evaluate((img) => img.getBoundingClientRect().width > 44));
   }
   await capture(firstPage, 'type-battle-sonuclar.png');
+  await secondPage.setViewportSize(mobile);
+  const mobileResult = await secondPage.locator('.finish-screen').evaluate(screen => ({
+    pageFits: document.documentElement.scrollWidth === document.documentElement.clientWidth,
+    resultsFit: screen.querySelector('.results-table-wrapper').scrollWidth <=
+      screen.querySelector('.results-table-wrapper').clientWidth + 1
+  }));
+  assert.deepEqual(mobileResult, { pageFits: true, resultsFit: true });
+  await capture(secondPage, 'type-battle-sonuclar-mobil.png');
 
   for (const [label, network] of [
     ['first player', firstNetwork],

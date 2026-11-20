@@ -204,6 +204,30 @@ describe('Race', () => {
     expect(avatar.querySelector('.fallback')).not.toBeNull();
   });
 
+  it('shows a loading state and prevents duplicate submissions while a room opens', async () => {
+    component.updateProfile({ nickname: 'Player', avatarId: 'avatar-01' });
+    let finish!: (code: string) => void;
+    raceService.createRoom.mockReturnValue(new Promise<string>((resolve) => { finish = resolve; }));
+
+    const pending = component.createRoom();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const create = root.querySelector<HTMLButtonElement>('.room-actions .btn-primary')!;
+    const join = root.querySelector<HTMLButtonElement>('.join-form button')!;
+    expect(create.disabled).toBe(true);
+    expect(join.disabled).toBe(true);
+    expect(create.textContent).toContain('Oda oluşturuluyor');
+
+    await component.createRoom();
+    expect(raceService.createRoom).toHaveBeenCalledOnce();
+    finish('ABCDE');
+    await pending;
+    fixture.detectChanges();
+
+    expect(create.disabled).toBe(false);
+    expect(join.disabled).toBe(false);
+  });
+
   it('blocks creating and joining a room with a short nickname', async () => {
     component.updateProfile({ nickname: ' Ab ', avatarId: 'avatar-01' });
     component.roomCode = 'ABCDE';
