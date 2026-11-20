@@ -257,6 +257,7 @@ public sealed class TypingHubTests
             message => message.Method == "RaceFinished");
         var result = Assert.IsType<RaceResult>(finishedEvent.Arguments[0]);
         var playerResult = Assert.Single(result.Players);
+        Assert.Equal(20L, playerResult.DurationMs);
         Assert.Equal(1, playerResult.MissedKeys['a']);
         Assert.False(playerResult.MissedKeys.ContainsKey('x'));
     }
@@ -289,6 +290,7 @@ public sealed class TypingHubTests
         Assert.Equal("avatar-06", result.Players.Single(player => player.Id == result.WinnerId).AvatarId);
         Assert.Equal(new[] { "player-2", "player-1" }, result.Players.Select(player => player.Id));
         Assert.False(result.Players.Single(player => player.Id == "player-1").Finished);
+        Assert.Null(result.Players.Single(player => player.Id == "player-1").DurationMs);
         Assert.True(result.Players.Single(player => player.Id == "player-2").Finished);
 
         var remainingHub = CreateHubForPlayer(fixture, "player-2");

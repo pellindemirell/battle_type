@@ -31,6 +31,7 @@ export interface RacePlayerResult {
   wpm: number;
   accuracy: number;
   finished: boolean;
+  durationMs: number | null;
 }
 
 export interface RaceResult {

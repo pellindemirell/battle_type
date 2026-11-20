@@ -143,6 +143,9 @@
   <p class="caps-lock-warning" *ngIf="capsLockOn">Caps Lock açık</p>
   <p class="reconnecting-warning" *ngIf="reconnecting">Yeniden bağlanıyor…</p>
 
+  <p class="race-clock" *ngIf="inRoom">
+    <span>Süre</span> <time>{{ formatDuration(elapsedMs, 1) }}</time>
+  </p>
   <div class="race-content" *ngIf="inRoom && !raceFinished">
     <div class="target-text-box">
       <h2>Yazılacak metin</h2>
@@ -207,7 +210,7 @@
     <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
     <h2 class="player-identity winner-identity">
       <app-player-avatar *ngIf="winningPlayer as winner" [avatarId]="winner.avatarId" />
-      Kazanan: {{ winningPlayer?.name ?? 'Bilinmeyen oyuncu' }}
+      Kazanan: {{ winningPlayer?.name ?? 'Bilinmeyen oyuncu' }} — {{ formatDuration(winningPlayer?.durationMs) }}
     </h2>
 
     <div class="results-table-wrapper">
@@ -218,7 +221,7 @@
             <th>WPM</th>
             <th>Doğruluk</th>
             <th>Hata</th>
-            <th>Tamamladı</th>
+            <th>Süre</th>
           </tr>
         </thead>
         <tbody>
@@ -238,7 +241,7 @@
             <td>{{ player.wpm | number:'1.0-0' }}</td>
             <td>%{{ player.accuracy | number:'1.0-0' }}</td>
             <td>{{ player.errors }}</td>
-            <td>{{ player.finished ? 'Evet' : 'Hayır' }}</td>
+            <td>{{ formatDuration(player.durationMs) }}</td>
           </tr>
         </tbody>
       </table>

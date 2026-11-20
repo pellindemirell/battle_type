@@ -532,6 +532,9 @@ public class TypingHub : Hub
                 CalculateAccuracy(player.Keystrokes, player.Errors),
                 player.FinishedAt is not null)
             {
+                DurationMs = player.FinishedAt is { } end
+                    ? (long)Math.Max(0, (end - startedAt).TotalMilliseconds)
+                    : null,
                 MissedKeys = new Dictionary<char, int>(player.MissedKeys)
             };
         }).ToArray();

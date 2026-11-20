@@ -47,3 +47,18 @@
   .opponent-status, .ready-idle:not(:disabled), .countdown-number { animation: none; }
   .ready-button:is(:hover, :focus-visible):not(:disabled) { transform: none; }
 }
+
+.race-clock {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 8px;
+  margin-block: 10px;
+  color: #c9c0da;
+
+  time {
+    color: #ffd60a;
+    font: 700 1.35rem ui-monospace, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}

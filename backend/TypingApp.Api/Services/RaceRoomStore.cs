@@ -98,6 +98,8 @@ public sealed record RacePlayerResult(
     double Accuracy,
     bool Finished)
 {
+    public long? DurationMs { get; init; }
+
     public IReadOnlyDictionary<char, int> MissedKeys { get; init; } =
         new Dictionary<char, int>();
 }

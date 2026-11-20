@@ -30,6 +30,7 @@ import {
 } from '../../models/race';
 import { RaceService } from '../../services/race.service';
 import { TypingEngine } from '../../services/typing-engine';
+import { formatRaceDuration } from './race-duration';
 
 interface RoomCreatedMessage {
   roomCode: string;
@@ -80,6 +81,10 @@ export class Race implements OnInit, OnDestroy {
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
   private countdownTimer?: ReturnType<typeof setInterval>;
+  private raceClock?: ReturnType<typeof setInterval>;
+  private localStart: number | null = null;
+  readonly formatDuration = formatRaceDuration;
+  elapsedMs = 0;
   private difficultyTypingInterval?: ReturnType<typeof setInterval>;
   private reconnecting = false;
   private targetTextValue = '';
@@ -214,6 +219,8 @@ export class Race implements OnInit, OnDestroy {
       }),
       this.raceService.on('CountdownStarted', (seconds: number) => {
         this.clearCountdown();
+        this.clearRaceClock();
+        this.elapsedMs = 0;
         this.clearWrongKeyTimer();
         this.countdown = seconds;
         this.raceFinished = false;
@@ -253,6 +260,7 @@ export class Race implements OnInit, OnDestroy {
       this.raceService.on('RaceStarted', ({ text }: { text: string }) => {
         this.clearCountdown();
         this.targetText = text;
+        this.startRaceClock();
         this.raceStarted = true;
         this.isReady = false;
         this.opponentReady = false;
@@ -264,6 +272,8 @@ export class Race implements OnInit, OnDestroy {
         this.changeDetector.markForCheck();
       }),
       this.raceService.on('RaceFinished', (result: RaceResult) => {
+        this.updateRaceClock();
+        this.clearRaceClock();
         this.result = result;
         this.raceFinished = true;
         this.raceStarted = false;
@@ -296,6 +306,7 @@ export class Race implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsubscribeHandlers.forEach((unsubscribe) => unsubscribe());
+    this.clearRaceClock();
     this.clearCountdown();
     this.clearWrongKeyTimer();
     this.clearDifficultyTypingInterval();
@@ -424,6 +435,8 @@ export class Race implements OnInit, OnDestroy {
   }
 
   resetRace(): void {
+    this.clearRaceClock();
+    this.elapsedMs = 0;
     this.clearCountdown();
     this.clearWrongKeyTimer();
     this.roomCode = '';
@@ -528,6 +541,26 @@ export class Race implements OnInit, OnDestroy {
       this.difficulty = option.value;
       this.changeDetector.markForCheck();
     }
+  }
+
+  private startRaceClock(): void {
+    this.clearRaceClock();
+    this.elapsedMs = 0;
+    this.localStart = performance.now();
+    this.raceClock = setInterval(() => this.updateRaceClock(), 100);
+  }
+
+  private updateRaceClock(): void {
+    if (this.localStart !== null) {
+      this.elapsedMs = performance.now() - this.localStart;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  private clearRaceClock(): void {
+    clearInterval(this.raceClock);
+    this.raceClock = undefined;
+    this.localStart = null;
   }
 
   private clearCountdown(): void {
