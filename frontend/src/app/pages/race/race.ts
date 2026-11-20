@@ -31,6 +31,7 @@ import {
 import { RaceService } from '../../services/race.service';
 import { TypingEngine } from '../../services/typing-engine';
 import { formatRaceDuration } from './race-duration';
+import { RaceKeyboard } from './race-keyboard';
 
 interface RoomCreatedMessage {
   roomCode: string;
@@ -67,7 +68,7 @@ interface TargetTextWord {
 @Component({
   selector: 'app-race',
   standalone: true,
-  imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker],
+  imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker, RaceKeyboard],
   templateUrl: './race.html',
   styleUrls: ['./race.scss', './race-avatars.scss', './race-ready.scss']
 })
@@ -78,6 +79,7 @@ export class Race implements OnInit, OnDestroy {
   private readonly prefersReducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   @ViewChild('difficultyRadioGroup') private difficultyRadioGroup?: ElementRef<HTMLDivElement>;
+  @ViewChild(RaceKeyboard) private keyboard?: RaceKeyboard;
   private unsubscribeHandlers: Array<() => void> = [];
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
   private countdownTimer?: ReturnType<typeof setInterval>;
@@ -180,6 +182,14 @@ export class Race implements OnInit, OnDestroy {
 
   get targetWords(): TargetTextWord[] {
     return this.targetWordsValue;
+  }
+
+  get expectedKey(): string | null {
+    return this.typingEngine.expectedKey;
+  }
+
+  get liveWpm(): number {
+    return this.elapsedMs > 0 ? Math.round(this.position * 12000 / this.elapsedMs) : 0;
   }
 
   get position(): number {
@@ -411,6 +421,7 @@ export class Race implements OnInit, OnDestroy {
     if (!input.accepted)
       return;
 
+    this.keyboard?.flash(key, input.correct);
     if (input.correct) {
       this.wrongKey = null;
       this.clearWrongKeyTimer();

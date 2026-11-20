@@ -176,7 +176,7 @@
     </div>
 
     <p class="keyboard-hint" *ngIf="raceStarted && !raceFinished">
-      Klavyeden yazmaya başla · Hata: {{ errors }} · Tuş: {{ keystrokes }}
+      Klavyeden yazmaya başla · Hata: {{ errors }} · WPM: {{ liveWpm }}
     </p>
 
     <div class="players">
@@ -203,6 +203,7 @@
         <span class="progress-label">%{{ opponentProgress | number:'1.0-0' }}</span>
       </div>
     </div>
+    <app-race-keyboard [running]="raceStarted" [next]="expectedKey" />
   </div>
 
   <div class="finish-screen" *ngIf="raceFinished && result">
