@@ -17,6 +17,9 @@ import {
   avatarForId,
   DEFAULT_AVATAR,
   filterNickname,
+  MAX_NICKNAME_LENGTH,
+  MIN_NICKNAME_LENGTH,
+  nicknameLength,
   PlayerProfile,
   PLAYER_PROFILE_STORAGE_KEY
 } from '../../models/player-profile';
@@ -69,7 +72,7 @@ interface TargetTextWord {
   standalone: true,
   imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker],
   templateUrl: './race.html',
-  styleUrls: ['./race.scss', './race-avatars.scss']
+  styleUrls: ['./race.scss', './race-difficulty.scss', './race-play.scss', './race-results.scss']
 })
 export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
@@ -89,6 +92,7 @@ export class Race implements OnInit, OnDestroy {
   profile = this.loadProfile();
   roomAvatarId = DEFAULT_AVATAR.id;
   roomCode = '';
+  pendingRoomAction: 'create' | 'join' | null = null;
   difficulty: RaceDifficulty = 'easy';
   wordCount = 30;
   characterMode: RaceCharacterMode = 'full';
@@ -294,23 +298,17 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async createRoom(): Promise<void> {
+    if (this.pendingRoomAction) return;
     const profile = this.profileForRoom();
     if (!profile) return;
 
-    try {
-      await this.raceService.createRoom(
-        this.difficulty,
-        this.wordCount,
-        this.characterMode,
-        profile
-      );
-    } catch (err: any) {
-      this.message = 'Oda oluşturulamadı: ' + (err?.message ?? err);
-      this.changeDetector.markForCheck();
-    }
+    await this.submitRoomAction('create', 'Oda oluşturulamadı', () =>
+      this.raceService.createRoom(this.difficulty, this.wordCount, this.characterMode, profile)
+    );
   }
 
   async joinRoom(): Promise<void> {
+    if (this.pendingRoomAction) return;
     const profile = this.profileForRoom();
     if (!profile) return;
     if (!this.roomCode.trim()) {
@@ -318,10 +316,24 @@ export class Race implements OnInit, OnDestroy {
       return;
     }
 
+    await this.submitRoomAction('join', 'Odaya katılınamadı', () =>
+      this.raceService.joinRoom(this.roomCode, profile)
+    );
+  }
+
+  private async submitRoomAction(
+    action: 'create' | 'join',
+    errorMessage: string,
+    request: () => Promise<unknown>
+  ): Promise<void> {
+    this.pendingRoomAction = action;
+    this.message = '';
     try {
-      await this.raceService.joinRoom(this.roomCode, profile);
-    } catch (err: any) {
-      this.message = 'Odaya katılınamadı: ' + (err?.message ?? err);
+      await request();
+    } catch (error) {
+      this.message = `${errorMessage}: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      this.pendingRoomAction = null;
       this.changeDetector.markForCheck();
     }
   }
@@ -594,8 +606,8 @@ export class Race implements OnInit, OnDestroy {
 
   private profileForRoom(): PlayerProfile | null {
     const nickname = filterNickname(this.profile.nickname.trim()).trim();
-    if (Array.from(nickname).length < 3) {
-      this.message = 'Oyuncu adı 3–16 karakter olmalı.';
+    if (nicknameLength(nickname) < MIN_NICKNAME_LENGTH) {
+      this.message = `Oyuncu adı ${MIN_NICKNAME_LENGTH}–${MAX_NICKNAME_LENGTH} karakter olmalı.`;
       return null;
     }
 

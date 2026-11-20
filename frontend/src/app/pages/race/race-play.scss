@@ -1,0 +1,186 @@
+.room-settings, .ready-controls, .room-code-box, .keyboard-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.room-settings {
+  margin-block: 12px;
+  color: var(--race-muted);
+  font: 500 .8125rem var(--race-mono);
+
+  span {
+    padding: 5px 10px;
+    border: 1px solid var(--race-border);
+    border-radius: 999px;
+    background: #211530;
+  }
+
+  .difficulty-badge { color: #e6c7ff; }
+}
+
+.room-code-box, .ready-controls, .keyboard-hint {
+  padding: 12px 14px;
+  border: 1px solid var(--race-border);
+  border-radius: var(--race-control-radius);
+  background: var(--race-panel);
+}
+
+.room-code-box {
+  margin-block-end: 10px;
+  color: var(--race-muted);
+
+  strong { color: var(--race-gold); font: 600 1.4rem var(--race-mono); letter-spacing: .12em; }
+  small { margin-inline-start: auto; font-size: .8125rem; }
+}
+
+.ready-controls {
+  justify-content: space-between;
+  margin-block-end: 16px;
+
+  p { color: var(--race-muted); }
+}
+
+.countdown-overlay {
+  display: grid;
+  justify-items: center;
+  margin-block: 16px;
+  color: var(--race-muted);
+
+  .countdown-number {
+    color: var(--race-gold);
+    font: 700 clamp(3rem, 8vw, 5rem)/1 var(--race-display);
+    animation: countdown-enter 260ms ease-out;
+  }
+}
+
+@keyframes countdown-enter {
+  from { transform: scale(.88); opacity: 0; }
+}
+
+.caps-lock-warning, .reconnecting-warning {
+  width: fit-content;
+  margin-block: 12px;
+  padding: 7px 11px;
+  border: 1px solid #966d28;
+  border-radius: 8px;
+  color: #fff1bd;
+  background: #37240e;
+  font-weight: 600;
+}
+
+.reconnecting-warning { color: #eee8ff; background: #282035; border-color: #796397; }
+
+.race-content { display: grid; gap: 14px; }
+.in-lobby .players { order: -1; }
+
+.target-text-box h2 {
+  margin-block-end: 12px;
+  color: var(--race-muted);
+  font: 600 .875rem var(--race-display);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.waiting-text p { color: var(--race-muted); }
+
+.target-text {
+  display: flex;
+  flex-wrap: wrap;
+  font: 500 clamp(.9375rem, 1.95vw, 1.3125rem)/1.9 var(--race-mono);
+  letter-spacing: .025em;
+}
+
+.target-word { white-space: nowrap; }
+.character { position: relative; display: inline-block; text-align: center; }
+.completed-text { color: #85e4ae; }
+
+.next-key {
+  color: #211403;
+  background: var(--race-gold);
+  outline: 1px solid var(--race-gold);
+}
+
+.wrong-key {
+  color: #fff;
+  background: #b4233b;
+  outline-color: #b4233b;
+  text-decoration: underline;
+  animation: key-error 150ms ease;
+}
+
+.wrong-key-badge {
+  position: absolute;
+  z-index: 1;
+  inset: -1.3em auto auto 50%;
+  padding-inline: 5px;
+  transform: translateX(-50%);
+  color: #fff;
+  background: #b4233b;
+  border-radius: 4px;
+  font-size: .625em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+@keyframes key-error {
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.keyboard-hint { justify-content: space-between; color: var(--race-muted); }
+
+.keyboard-metrics, .progress-label, .error-label {
+  font: 500 .8125rem var(--race-mono);
+}
+
+.players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.player-card {
+  --avatar-size: 48px;
+  padding: clamp(14px, 2vw, 20px);
+
+  h3 {
+    margin-block-end: 13px;
+    font: 700 1.125rem/1.2 var(--race-display);
+  }
+}
+
+.player-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.progress-bar-container {
+  block-size: 9px;
+  margin-block-end: 8px;
+  border-radius: 8px;
+  background: #342644;
+  overflow: hidden;
+}
+
+.progress-bar {
+  block-size: 100%;
+  border-radius: inherit;
+  background: #b56df4;
+}
+
+.opponent .progress-bar { background: var(--race-gold); }
+.error-label { margin-inline-start: 10px; color: var(--race-muted); }
+
+@media (max-width: 520px) {
+  .players { grid-template-columns: minmax(0, 1fr); }
+  .room-code-box small { margin-inline-start: 0; }
+}
+
+@media (max-width: 260px) {
+  .target-word { white-space: normal; overflow-wrap: anywhere; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown-overlay .countdown-number, .character.wrong-key { animation: none; }
+}

@@ -1,20 +1,31 @@
-<section class="profile-panel" aria-labelledby="profile-title">
-  <h2 id="profile-title">Profilini Oluştur</h2>
-  <label for="player-nickname">Oyuncu adı</label>
-  <input
-    id="player-nickname"
-    type="text"
-    placeholder="Oyuncu adın"
-    autocomplete="nickname"
-    aria-describedby="nickname-hint"
-    [value]="profile().nickname"
-    (input)="updateNickname($event)"
-    required
-  />
-  <p id="nickname-hint">3–16 karakter · Harf ve boşluk</p>
+<section class="race-panel profile-panel" aria-labelledby="profile-title">
+  <div class="profile-copy">
+    <h2 id="profile-title" class="race-section-title">Profilini oluştur</h2>
+    <p class="profile-intro">Yarışta görünecek oyuncu adını ve avatarını seç.</p>
+
+    <div class="nickname-label">
+      <label for="player-nickname">Oyuncu adı</label>
+      <span class="nickname-count" aria-hidden="true">{{ nicknameCount() }} / {{ maxNicknameLength }}</span>
+    </div>
+    <input
+      id="player-nickname"
+      class="race-field"
+      type="text"
+      placeholder="Oyuncu adın"
+      autocomplete="nickname"
+      aria-describedby="nickname-hint"
+      [attr.aria-invalid]="nicknameTooShort() || null"
+      [value]="profile().nickname"
+      (input)="updateNickname($event)"
+      required
+    />
+    <p id="nickname-hint" aria-live="polite" aria-atomic="true" [class.has-error]="nicknameFeedback()">
+      {{ nicknameFeedback() || defaultNicknameHint }}
+    </p>
+  </div>
 
   <fieldset>
-    <legend>Avatarını Seç</legend>
+    <legend>Avatarını seç</legend>
     <div class="avatar-grid">
       @for (avatar of avatars; track avatar.id) {
         <label class="avatar-option">

@@ -1,9 +1,9 @@
-<div class="race-page">
+<main class="race-page" aria-label="Type Battle yarış ekranı">
   <div class="setup" *ngIf="!targetText">
     <app-player-profile [profile]="profile" (profileChange)="updateProfile($event)" />
 
-    <section class="room-options" aria-label="Yarış ayarları">
-      <h2>Yarış ayarları</h2>
+    <section class="race-panel room-options" aria-labelledby="race-settings-title">
+      <h2 id="race-settings-title" class="race-section-title">Yarış ayarları</h2>
       <div
         #difficultyRadioGroup
         class="difficulty-options"
@@ -66,49 +66,67 @@
       <div class="room-option-selects">
         <label>
           Kelime sayısı
-          <select [(ngModel)]="wordCount" aria-label="Kelime sayısı">
-            <option [ngValue]="30">30 kelime</option>
-            <option [ngValue]="45">45 kelime</option>
-            <option [ngValue]="60">60 kelime</option>
-          </select>
+          <span class="select-shell">
+            <select class="race-field" [(ngModel)]="wordCount">
+              <option [ngValue]="30">30 kelime</option>
+              <option [ngValue]="45">45 kelime</option>
+              <option [ngValue]="60">60 kelime</option>
+            </select>
+          </span>
         </label>
         <label>
           Türkçe karakter modu
-          <select
-            [(ngModel)]="characterMode"
-            aria-label="Türkçe karakter modu"
-          >
-            <option value="full">Tam</option>
-            <option value="simplified">Sadeleştirilmiş</option>
-          </select>
+          <span class="select-shell">
+            <select class="race-field" [(ngModel)]="characterMode">
+              <option value="full">Tam</option>
+              <option value="simplified">Sadeleştirilmiş</option>
+            </select>
+          </span>
         </label>
       </div>
 
-      <button
-        class="btn-primary"
-        type="button"
-        aria-label="Seçilen ayarlarla oda oluştur"
-        (click)="createRoom()"
-      >
-        Oda Oluştur
-      </button>
-    </section>
+      <div class="room-actions">
+        <button
+          class="btn-primary"
+          type="button"
+          [attr.aria-label]="pendingRoomAction === 'create' ? null : 'Seçilen ayarlarla oda oluştur'"
+          [attr.aria-busy]="pendingRoomAction === 'create' || null"
+          [disabled]="pendingRoomAction !== null"
+          (click)="createRoom()"
+        >
+          {{ pendingRoomAction === 'create' ? 'Oda oluşturuluyor…' : 'Oda Oluştur' }}
+        </button>
 
-    <div class="setup-group">
-      <input
-        type="text"
-        placeholder="Oda kodu (5 hane)"
-        [(ngModel)]="roomCode"
-        maxlength="5"
-        style="text-transform: uppercase"
-      />
-      <button class="btn-secondary" (click)="joinRoom()">Yarışmaya Katıl</button>
-    </div>
+        <form class="join-form" (ngSubmit)="joinRoom()">
+          <label for="room-code">Oda kodu</label>
+          <input
+            id="room-code"
+            class="race-field room-code-input"
+            name="roomCode"
+            type="text"
+            placeholder="Oda kodu (5 hane)"
+            [(ngModel)]="roomCode"
+            maxlength="5"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+          />
+          <button
+            class="btn-secondary"
+            type="submit"
+            [attr.aria-busy]="pendingRoomAction === 'join' || null"
+            [disabled]="pendingRoomAction !== null"
+          >
+            {{ pendingRoomAction === 'join' ? 'Odaya katılınıyor…' : 'Yarışmaya Katıl' }}
+          </button>
+        </form>
+      </div>
+    </section>
   </div>
 
-  <p class="status-message" role="status" *ngIf="message">{{ message }}</p>
+  <p class="status-message" role="status" *ngIf="message && !raceFinished">{{ message }}</p>
 
-  <div class="room-settings" *ngIf="roomSettings">
+  <div class="room-settings" *ngIf="roomSettings && !raceFinished">
     <span class="difficulty-badge">
       {{ difficultyLabel(roomSettings.difficulty) }}
     </span>
@@ -118,8 +136,8 @@
     </span>
   </div>
 
-  <div class="room-code-box" *ngIf="roomCode && !raceStarted && !raceFinished">
-    <span>Oda Kodu:</span>
+  <div class="room-code-box" *ngIf="targetText && roomCode && !raceStarted && !raceFinished">
+    <span>Oda kodu</span>
     <strong>{{ roomCode }}</strong>
     <small>Bu kodu rakibine gönder</small>
   </div>
@@ -139,7 +157,7 @@
     </button>
   </div>
 
-  <div class="countdown-overlay" *ngIf="countdown > 0">
+  <div class="countdown-overlay" *ngIf="countdown > 0" role="status" aria-live="polite">
     <div class="countdown-number">{{ countdown }}</div>
     <p>Hazır ol…</p>
   </div>
@@ -147,8 +165,8 @@
   <p class="caps-lock-warning" *ngIf="capsLockOn">Caps Lock açık</p>
   <p class="reconnecting-warning" *ngIf="reconnecting">Yeniden bağlanıyor…</p>
 
-  <div class="race-content" *ngIf="targetText">
-    <div class="target-text-box" *ngIf="opponentName; else waitingForOpponent">
+  <div class="race-content" [class.in-lobby]="!raceStarted" *ngIf="targetText && !raceFinished">
+    <div class="race-panel target-text-box" *ngIf="opponentName; else waitingForOpponent">
       <h2>Yazılacak Metin</h2>
       <p class="target-text">
         <span *ngFor="let word of targetWords" class="target-word">
@@ -167,18 +185,19 @@
       </p>
     </div>
     <ng-template #waitingForOpponent>
-      <div class="target-text-box waiting-text" role="status">
+      <div class="race-panel target-text-box waiting-text" role="status">
         <h2>Yazılacak Metin</h2>
         <p>Rakibin katıldığında yazacağın metin burada gösterilecek! </p>
       </div>
     </ng-template>
 
     <p class="keyboard-hint" *ngIf="raceStarted && !raceFinished">
-      Klavyeden yazmaya başla · Hata: {{ errors }} · Tuş: {{ keystrokes }}
+      <span>Klavyeden yazmaya başla</span>
+      <span class="keyboard-metrics">Hata: {{ errors }} · Tuş: {{ keystrokes }}</span>
     </p>
 
     <div class="players">
-      <div class="player-card">
+      <div class="race-panel player-card">
         <h3 class="player-identity">
           <app-player-avatar [avatarId]="roomAvatarId" />
           {{ profile.nickname || 'Sen' }}
@@ -190,7 +209,7 @@
         <span class="error-label">Hata: {{ errors }}</span>
       </div>
 
-      <div class="player-card opponent">
+      <div class="race-panel player-card opponent">
         <h3 class="player-identity">
           <app-player-avatar *ngIf="opponentName" [avatarId]="opponentAvatarId" />
           {{ opponentName || 'Rakip bekleniyor…' }}
@@ -203,31 +222,32 @@
     </div>
   </div>
 
-  <div class="finish-screen" *ngIf="raceFinished && result">
-    <div class="trophy">🏆</div>
-    <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
+  <section class="race-panel finish-screen" *ngIf="raceFinished && result" aria-labelledby="race-result-title">
+    <div class="trophy" aria-hidden="true">🏆</div>
+    <h1 id="race-result-title">{{ isWinner ? 'Kazandın!' : 'Yarış tamamlandı!' }}</h1>
     <h2 class="player-identity winner-identity">
       <app-player-avatar *ngIf="winningPlayer as winner" [avatarId]="winner.avatarId" />
       Kazanan: {{ winningPlayer?.name ?? 'Bilinmeyen oyuncu' }}
     </h2>
 
     <div class="results-table-wrapper">
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th>Oyuncu</th>
-            <th>WPM</th>
-            <th>Doğruluk</th>
-            <th>Hata</th>
-            <th>Tamamladı</th>
+      <table class="results-table" role="table" aria-label="Oyuncu sonuçları">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">Oyuncu</th>
+            <th scope="col" role="columnheader">WPM</th>
+            <th scope="col" role="columnheader">Doğruluk</th>
+            <th scope="col" role="columnheader">Hata</th>
+            <th scope="col" role="columnheader">Tamamladı</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           <tr
+            role="row"
             *ngFor="let player of result.players"
             [class.winner-row]="player.id === result.winnerId"
           >
-            <td>
+            <td role="cell" class="result-player">
               <div class="player-identity">
                 <app-player-avatar [avatarId]="player.avatarId" />
                 <span>
@@ -236,22 +256,37 @@
                 </span>
               </div>
             </td>
-            <td>{{ player.wpm | number:'1.0-0' }}</td>
-            <td>%{{ player.accuracy | number:'1.0-0' }}</td>
-            <td>{{ player.errors }}</td>
-            <td>{{ player.finished ? 'Evet' : 'Hayır' }}</td>
+            <td role="cell">
+              <span class="result-metric-label" aria-hidden="true">WPM</span>
+              {{ player.wpm | number:'1.0-0' }}
+            </td>
+            <td role="cell">
+              <span class="result-metric-label" aria-hidden="true">Doğruluk</span>
+              %{{ player.accuracy | number:'1.0-0' }}
+            </td>
+            <td role="cell">
+              <span class="result-metric-label" aria-hidden="true">Hata</span>
+              {{ player.errors }}
+            </td>
+            <td role="cell">
+              <span class="result-metric-label" aria-hidden="true">Tamamladı</span>
+              {{ player.finished ? 'Evet' : 'Hayır' }}
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <button class="btn-primary" (click)="resetRace()">Tekrar Oyna</button>
-    <button
-      class="btn-secondary"
-      (click)="requestRematch()"
-      [disabled]="rematchRequested || reconnecting"
-    >
-      {{ rematchRequested ? 'Rakip bekleniyor…' : 'Rövanş iste' }}
-    </button>
-  </div>
-</div>
+    <div class="result-actions">
+      <button class="btn-primary" type="button" (click)="resetRace()">Tekrar Oyna</button>
+      <button
+        class="btn-secondary"
+        type="button"
+        (click)="requestRematch()"
+        [disabled]="rematchRequested || reconnecting"
+      >
+        {{ rematchRequested ? 'Rakip bekleniyor…' : 'Rövanş iste' }}
+      </button>
+    </div>
+  </section>
+</main>

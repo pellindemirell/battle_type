@@ -100,3 +100,15 @@ button {
     will-change: auto;
   }
 }
+
+:host:has(app-race) {
+  .brand-header {
+    --brand-logo-size: clamp(218px, 27vw, 354px);
+    padding-block-start: clamp(10px, 2vw, 23px);
+    margin-block-end: clamp(16px, 2vw, 25px);
+  }
+
+  .glow-violet { opacity: .68; }
+  .glow-plum { opacity: .74; }
+  .glow-gold { opacity: .55; }
+}
