@@ -1,0 +1,26 @@
+
+.series-score {
+  margin-block: 12px;
+  color: #ffd60a;
+  font: 700 1.1rem ui-monospace, Consolas, monospace;
+}
+
+.match-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(440px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  padding: 20px;
+  border: 1px solid #a172cc;
+  border-radius: 14px;
+  background: #21132f;
+  color: #f5f0ff;
+}
+
+.match-dialog::backdrop { background: #09050cbd; }
+.match-dialog h2 { font-size: 1.35rem; }
+.match-dialog p, .match-dialog form { margin-block-start: 12px; }
+.match-dialog form { display: grid; gap: 8px; }
+.match-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
+.room-toast { inset-block-end: 70px; }

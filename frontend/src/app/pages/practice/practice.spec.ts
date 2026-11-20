@@ -104,6 +104,29 @@ describe('Practice', () => {
     expect(component.stars).toBe(1);
   });
 
+  it('generates longer mixed attempts with the same lesson keys and keeps the best result', () => {
+    let previous = lesson.text;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      for (const key of previous) component.onKeyDown(new KeyboardEvent('keydown', { key }));
+      expect(component.completed).toBe(true);
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('.practice-button').click();
+      fixture.detectChanges();
+      const next = component.textCharacters.join('');
+      expect(next).toMatch(/^[fj]+(?: [fj]+)*$/);
+      expect(next.replaceAll(' ', '').length).toBeGreaterThan(previous.replaceAll(' ', '').length);
+      expect(next.split(' ').some(group => group.includes('f') && group.includes('j'))).toBe(true);
+      expect(component.lesson?.id).toBe(lesson.id);
+      expect(component.position).toBe(0);
+      expect(component.errors).toBe(0);
+      expect(component.completed).toBe(false);
+      expect(component.expectedKey).toBe(next[0]);
+      expect(component.bestAccuracy).toBe(100);
+      previous = next;
+    }
+  });
+
   it('shows a warning if local storage cannot save the result', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('Storage unavailable');

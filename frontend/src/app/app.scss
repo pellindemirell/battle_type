@@ -33,8 +33,9 @@ button {
 .brand-header {
   display: flex;
   justify-content: center;
-  padding-top: 12px;
-  margin-bottom: 1.5rem;
+  --brand-logo-size: clamp(218px, 27vw, 354px);
+  padding-block-start: clamp(10px, 2vw, 23px);
+  margin-block-end: clamp(16px, 2vw, 25px);
 }
 
 .ambient-background {
@@ -60,16 +61,19 @@ button {
 }
 
 .glow-violet {
+  opacity: .68;
   background: radial-gradient(ellipse at center, rgba(109, 40, 217, .35) 0%, rgba(109, 40, 217, .16) 45%, transparent 72%);
   animation: ambient-drift-violet 58s ease-in-out infinite alternate;
 }
 
 .glow-plum {
+  opacity: .74;
   background: radial-gradient(ellipse at center, rgba(59, 10, 110, .54) 0%, rgba(59, 10, 110, .24) 46%, transparent 72%);
   animation: ambient-drift-plum 67s ease-in-out infinite alternate;
 }
 
 .glow-gold {
+  opacity: .55;
   background: radial-gradient(ellipse at center, rgba(250, 204, 21, .13) 0%, rgba(250, 204, 21, .055) 42%, transparent 70%);
   animation: ambient-drift-gold 43s ease-in-out infinite alternate;
 }
@@ -99,16 +103,4 @@ button {
     animation: none;
     will-change: auto;
   }
-}
-
-:host:has(app-race) {
-  .brand-header {
-    --brand-logo-size: clamp(218px, 27vw, 354px);
-    padding-block-start: clamp(10px, 2vw, 23px);
-    margin-block-end: clamp(16px, 2vw, 25px);
-  }
-
-  .glow-violet { opacity: .68; }
-  .glow-plum { opacity: .74; }
-  .glow-gold { opacity: .55; }
 }

@@ -1,0 +1,50 @@
+:host {
+  position: relative;
+  display: inline-block;
+  max-inline-size: 100%;
+  vertical-align: baseline;
+}
+
+.typewriter-label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.typewriter-reserve, .typewriter-face { white-space: pre-wrap; }
+
+.typewriter-reserve {
+  display: block;
+  visibility: hidden;
+  padding-inline-end: .02em;
+}
+
+.typewriter-face {
+  position: absolute;
+  inset: 0;
+}
+.typewriter-accent { color: var(--typewriter-accent, currentColor); }
+.typewriter-pending { visibility: hidden; }
+
+.typewriter-caret { position: relative; }
+
+.typewriter-caret::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: .06em;
+  inset-block-end: .11em;
+  inline-size: 1px;
+  block-size: .85em;
+  background: var(--typewriter-cursor, currentColor);
+  animation: typewriter-blink 700ms steps(1, end) infinite;
+  pointer-events: none;
+}
+
+@keyframes typewriter-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .typewriter-caret::after { animation: none; }
+}

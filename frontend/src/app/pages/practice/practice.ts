@@ -12,6 +12,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Lesson } from '../../models/lesson';
 import { LessonService } from '../../services/lesson.service';
 import { TypingEngine } from '../../services/typing-engine';
+import { nextPracticeText } from './practice-variation';
 
 @Component({
   selector: 'app-practice',
@@ -27,6 +28,7 @@ export class Practice implements OnInit, OnDestroy {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private wrongKeyTimer?: ReturnType<typeof setTimeout>;
+  private practiceText = '';
 
   readonly keyboardRows = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'ı', 'o', 'p', 'ğ', 'ü'],
@@ -43,6 +45,7 @@ export class Practice implements OnInit, OnDestroy {
   bestAccuracy = 0;
   storageWarning = '';
   wrongKey: string | null = null;
+  textCharacters: string[] = [];
 
   ngOnInit(): void {
     const lessonId = Number(this.route.snapshot.paramMap.get('id'));
@@ -55,7 +58,7 @@ export class Practice implements OnInit, OnDestroy {
     this.lessonService.getLesson(lessonId).subscribe({
       next: (lesson) => {
         this.lesson = lesson;
-        this.typingEngine.reset(lesson.text);
+        this.setPracticeText(lesson.text);
         this.loading = false;
         this.loadBestAccuracy(lesson.id);
         this.changeDetector.markForCheck();
@@ -119,10 +122,6 @@ export class Practice implements OnInit, OnDestroy {
     return this.typingEngine.expectedKey;
   }
 
-  get textCharacters(): string[] {
-    return this.lesson?.text.split('') ?? [];
-  }
-
   isWrongVirtualKey(key: string): boolean {
     return this.wrongKey === (key === ' ' ? '␣' : key);
   }
@@ -131,10 +130,16 @@ export class Practice implements OnInit, OnDestroy {
     if (!this.lesson) return;
 
     this.clearWrongKeyTimer();
-    this.typingEngine.reset(this.lesson.text);
+    this.setPracticeText(nextPracticeText(this.lesson.text, this.practiceText));
     this.completed = false;
     this.stars = 0;
     this.wrongKey = null;
+  }
+
+  private setPracticeText(text: string): void {
+    this.practiceText = text;
+    this.textCharacters = text.split('');
+    this.typingEngine.reset(text);
   }
 
   private finishPractice(): void {

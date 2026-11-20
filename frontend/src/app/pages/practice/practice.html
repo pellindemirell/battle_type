@@ -1,42 +1,45 @@
-<main class="practice-page">
-  <header class="practice-header">
-    <a routerLink="/practice" class="back-link">← Derslere dön</a>
-    <div *ngIf="lesson">
-      <p class="eyebrow">{{ lesson.category }}</p>
-      <h1>{{ lesson.title }}</h1>
-      <p>Süre sınırı yok. Yazmaya hazır olduğunda klavyeden devam et.</p>
-    </div>
+<main class="game-page practice-page">
+  <a routerLink="/practice" class="game-back-link">← Derslere dön</a>
+  <header class="practice-header" *ngIf="lesson">
+    <p class="category">{{ lesson.category }}</p>
+    <h1 class="game-title">{{ lesson.title }}</h1>
+    <p>Süre sınırı yok. Hazır olduğunda fiziksel klavyeden yazmaya başla.</p>
   </header>
 
-  <p class="loading-message" *ngIf="loading">Ders yükleniyor…</p>
-  <p class="error-message" *ngIf="error">{{ error }}</p>
+  <p class="game-panel practice-status" role="status" *ngIf="loading">Ders yükleniyor…</p>
+  <p class="game-panel practice-status error-message" role="alert" *ngIf="error">{{ error }}</p>
 
   <ng-container *ngIf="lesson && !completed">
-    <div class="practice-stats">
-      <span>Doğruluk: %{{ accuracy }}</span>
-      <span>Hatalar: {{ errors }}</span>
-    </div>
-
-    <section class="practice-text" aria-label="Yazma metni">
-      <span
-        *ngFor="let character of textCharacters; let i = index"
-        class="practice-character"
-        [class.completed-text]="i < position"
-        [class.next-key]="i === position"
-        [class.wrong-key]="i === position && wrongKey !== null"
-      >
-        {{ character === ' ' ? '\u00a0' : character }}<span
-          class="wrong-key-badge"
-          *ngIf="i === position && wrongKey !== null"
-        >{{ wrongKey }}</span>
-      </span>
+    <section class="game-panel typing-panel" aria-labelledby="practice-text-title">
+      <div class="typing-heading">
+        <h2 id="practice-text-title" class="game-section-title">Yazılacak metin</h2>
+        <dl class="practice-stats">
+          <div><dt>Doğruluk</dt><dd>%{{ accuracy }}</dd></div>
+          <div><dt>Hata</dt><dd>{{ errors }}</dd></div>
+        </dl>
+      </div>
+      <div class="practice-text">
+        <span
+          *ngFor="let character of textCharacters; let i = index"
+          class="practice-character"
+          [class.completed-text]="i < position"
+          [class.next-key]="i === position"
+          [class.wrong-key]="i === position && wrongKey !== null"
+        >{{ character === ' ' ? '\u00a0' : character }}<span
+            class="wrong-key-badge"
+            *ngIf="i === position && wrongKey !== null"
+          >{{ wrongKey }}</span>
+        </span>
+      </div>
     </section>
 
-    <section class="keyboard-panel" aria-label="Türkçe Q sanal klavyesi">
+    <section class="game-panel keyboard-panel" aria-labelledby="practice-keyboard-title">
+      <h2 id="practice-keyboard-title">Türkçe Q klavye</h2>
       <div class="keyboard-row" *ngFor="let row of keyboardRows">
         <span
           *ngFor="let key of row"
           class="virtual-key"
+          [class.space-key]="key === ' '"
           [class.next-key]="key === expectedKey"
           [class.wrong-virtual-key]="isWrongVirtualKey(key)"
         >
@@ -46,21 +49,19 @@
     </section>
   </ng-container>
 
-  <section class="practice-result" *ngIf="lesson && completed">
-    <p class="eyebrow">Ders tamamlandı</p>
-    <h2>%{{ accuracy }} doğruluk</h2>
-    <p class="star-rating" aria-label="Kazanılan yıldız">
+  <section class="game-panel practice-result" *ngIf="lesson && completed" aria-labelledby="practice-result-title">
+    <h2 id="practice-result-title" class="game-section-title">Ders tamamlandı</h2>
+    <p class="star-rating" role="img" [attr.aria-label]="stars + ' / 3 yıldız'">
       {{ '★'.repeat(stars) }}{{ '☆'.repeat(3 - stars) }}
     </p>
-    <p>Hata sayısı: {{ errors }}</p>
-    <p *ngIf="bestAccuracy > 0">En iyi doğruluk: %{{ bestAccuracy }}</p>
-    <p class="storage-warning" *ngIf="storageWarning">{{ storageWarning }}</p>
-    <button type="button" class="practice-button" (click)="restart()">
-      Tekrar çalış
-    </button>
+    <dl class="result-metrics">
+      <div><dt>Doğruluk</dt><dd>%{{ accuracy }}</dd></div>
+      <div><dt>Hata</dt><dd>{{ errors }}</dd></div>
+      <div *ngIf="bestAccuracy > 0"><dt>En iyi sonuç</dt><dd>%{{ bestAccuracy }}</dd></div>
+    </dl>
+    <p class="storage-warning" role="status" *ngIf="storageWarning">{{ storageWarning }}</p>
+    <button type="button" class="btn-primary practice-button" (click)="restart()">Tekrar çalış</button>
   </section>
 
-  <p class="storage-warning" *ngIf="!completed && storageWarning">
-    {{ storageWarning }}
-  </p>
+  <p class="storage-warning" role="status" *ngIf="!completed && storageWarning">{{ storageWarning }}</p>
 </main>

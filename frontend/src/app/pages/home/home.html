@@ -1,17 +1,21 @@
-<main class="home-page">
-  <h1>HIZLI OLAN KAZANSIN</h1>
-  <p>Yazma becerini tek başına geliştir veya arkadaşınla yarış!</p>
+<main class="game-page home-page">
+  <header class="home-intro">
+    <h1><app-typewriter text="Hızlı olan kazansın." accentSuffix="kazansın." trigger="auto" /></h1>
+    <p>Arkadaşınla yarış ya da Türkçe Q klavyede kendi hızında çalış.</p>
+  </header>
 
   <nav class="mode-options" aria-label="Oyun modu">
-    <a routerLink="/race" class="mode-card">
-      <span class="mode-icon" aria-hidden="true">🏁</span>
-      <strong>Yarış</strong>
-      <span>Bir arkadaşınla beraber aynı metinde yarışın.</span>
+    <a #raceCard routerLink="/race" class="game-panel mode-card mode-race">
+      <span class="mode-mark" aria-hidden="true"><app-icon name="race-flag" [size]="32" /></span>
+      <h2><app-typewriter text="Yarış" [hoverTarget]="raceCard" /></h2>
+      <p>Bir oda aç veya arkadaşının odasına katıl. Aynı metni ilk bitiren kazanır.</p>
+      <span class="mode-link">Yarışa geç <span aria-hidden="true">→</span></span>
     </a>
-    <a routerLink="/practice" class="mode-card">
-      <span class="mode-icon" aria-hidden="true">⌨️</span>
-      <strong>Practice</strong>
-      <span>Q klavyede yazma hızını arttırmayı öğren ve kendini geliştir.</span>
+    <a #practiceCard routerLink="/practice" class="game-panel mode-card">
+      <span class="mode-mark practice-mark" aria-hidden="true"><kbd>F</kbd><kbd>J</kbd></span>
+      <h2><app-typewriter text="Pratik" [hoverTarget]="practiceCard" /></h2>
+      <p>Adım adım yeni tuşları öğren, doğruluğunu kendi hızında geliştir.</p>
+      <span class="mode-link">Derslere göz at <span aria-hidden="true">→</span></span>
     </a>
   </nav>
 </main>

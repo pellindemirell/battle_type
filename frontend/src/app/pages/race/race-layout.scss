@@ -1,0 +1,48 @@
+.lobby-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-block-end: 12px;
+
+  @media (min-width: 641px) {
+    position: absolute;
+    inset-block-start: clamp(12px, 2vw, 24px);
+    inset-inline-start: clamp(12px, 2vw, 32px);
+    margin: 0;
+  }
+}
+
+.race-page.race-live { inline-size: min(1120px, calc(100% - clamp(24px, 7vw, 64px))); }
+
+.room-invite .invite-link {
+  align-content: stretch;
+  block-size: var(--invite-tile-size);
+  padding: 6px 9px;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+
+  code {
+    overflow: auto;
+    max-block-size: 100%;
+    word-break: break-all;
+    font: 500 .6875rem/1.15 var(--game-mono);
+    user-select: all;
+  }
+  button { padding: 4px 7px; font-size: .8rem; }
+}
+
+.live-race {
+  grid-template-columns: minmax(0, 1fr);
+  margin-block-start: clamp(12px, 5vh, 48px);
+
+  .target-text-box {
+    display: grid;
+    align-content: center;
+    justify-self: center;
+    inline-size: min(100%, 70rem);
+    min-block-size: clamp(12rem, 29vh, 19rem);
+    padding: clamp(1rem, 3vw, 2.5rem);
+  }
+
+  .target-text { font-size: clamp(1rem, 2.7vw, 1.75rem); line-height: 1.75; }
+}

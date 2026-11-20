@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.SignalR;
 using TypingApp.Api.Services;
@@ -9,18 +10,25 @@ public class TypingHub : Hub
     private static readonly TimeSpan MinimumKeyPressInterval =
         TimeSpan.FromMilliseconds(20);
 
+    private static readonly object LastChatMessageKey = new();
+    private static readonly HashSet<string> ChatEmoteIds = Enumerable.Range(1, 20)
+        .Select(id => id.ToString("00", CultureInfo.InvariantCulture))
+        .ToHashSet(StringComparer.Ordinal);
     private readonly RaceRoomStore _rooms;
     private readonly WordSelector _wordSelector;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<TypingHub>? _logger;
 
     public TypingHub(
         RaceRoomStore rooms,
         WordSelector wordSelector,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ILogger<TypingHub>? logger = null)
     {
         _rooms = rooms;
         _wordSelector = wordSelector;
         _timeProvider = timeProvider;
+        _logger = logger;
     }
 
     public Task<string> CreateRoom(
@@ -40,18 +48,7 @@ public class TypingHub : Hub
         var normalizedPlayerName = NormalizePlayerName(playerName);
         var normalizedAvatarId = NormalizeAvatarId(avatarId);
 
-        RoomSettings settings;
-        try
-        {
-            settings = RoomSettings.Create(
-                difficulty,
-                wordCount,
-                characterMode);
-        }
-        catch (ArgumentException error)
-        {
-            throw new HubException(error.Message);
-        }
+        var settings = ParseRoomSettings(difficulty, wordCount, characterMode);
 
         var text = _wordSelector.BuildText(
             settings.Level,
@@ -84,7 +81,6 @@ public class TypingHub : Hub
             new
             {
                 roomCode,
-                text = room.Text,
                 playerName = normalizedPlayerName,
                 avatarId = normalizedAvatarId,
                 settings = BuildRoomSettings(room.Settings)
@@ -106,6 +102,8 @@ public class TypingHub : Hub
 
         lock (room.Lock)
         {
+            if (!_rooms.TryGet(room.Code, out var currentRoom) || !ReferenceEquals(currentRoom, room))
+                throw new HubException("Oda bulunamadı.");
             if (room.Phase != RacePhase.Waiting)
                 throw new HubException("Yarışma zaten başladı veya tamamlandı.");
 
@@ -128,165 +126,393 @@ public class TypingHub : Hub
             "PlayerJoined",
             new
             {
-                text = room.Text,
+                roomCode = room.Code,
                 players = progress,
                 settings = BuildRoomSettings(room.Settings)
             });
-        await SendReadyStatus(room);
+        await SendReadyChanged(room);
     }
 
-    public async Task SetReady(string? roomCode)
+    public Task SetReady(string? roomCode) => Ready(roomCode, true);
+
+    public async Task Ready(string? roomId, bool ready)
     {
-        var room = GetRoom(roomCode);
-        CancellationTokenSource? countdown;
+        var room = GetRoom(roomId);
+        var group = Clients.Group(room.Code);
+        Task update;
+        Task? countdown = null;
 
         lock (room.Lock)
         {
-            if (room.Phase != RacePhase.Waiting)
-                throw new HubException("Bu yarışma şu anda hazır duruma alınamaz.");
+            if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
+                throw new HubException("Bu yarışmanın oyuncusu değilsin.");
 
             if (room.Players.Count != 2)
                 throw new HubException("Rakip katılınca hazır olabilirsin.");
 
-            if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
-                throw new HubException("Bu yarışmanın oyuncusu değilsin.");
+            if (room.SettingsProposal is not null)
+                throw new HubException("Oda ayarları onay bekliyor.");
 
-            player.Ready = true;
-            countdown = StartCountdownIfEveryoneReady(room);
+            if (room.Phase != RacePhase.Waiting && !(room.Phase == RacePhase.Countdown && !ready))
+                throw new HubException("Bu yarışma şu anda hazır duruma alınamaz.");
+
+            player.Ready = ready;
+            Task? canceled = null;
+            if (room.Phase == RacePhase.Countdown)
+            {
+                CancelCountdown(room);
+                canceled = group.SendAsync("CountdownCanceled");
+            }
+
+            update = group.SendAsync("ReadyChanged", BuildReadyPlayers(room));
+            if (canceled is not null)
+                update = Task.WhenAll(canceled, update);
+            if (ready && room.Players.Values.All(candidate => candidate.Ready))
+                countdown = StartCountdown(room, group);
         }
 
-        await SendReadyStatus(room);
+        await update;
         if (countdown is not null)
-            await RunCountdown(room, countdown);
+            await countdown;
     }
 
-    public async Task Rematch(string? roomCode)
+    public async Task ProposeRoomSettings(string? roomId, string? difficulty, int wordCount, string? characterMode)
     {
-        var room = GetRoom(roomCode);
-        CancellationTokenSource? countdown = null;
-
+        var room = GetRoom(roomId);
+        var settings = ParseRoomSettings(difficulty, wordCount, characterMode);
+        var group = Clients.Group(room.Code);
+        Task notification;
         lock (room.Lock)
         {
-            if (room.Phase != RacePhase.Finished)
-                throw new HubException("Rövanş yalnızca yarış bitince istenebilir.");
+            if (!room.Players.TryGetValue(Context.ConnectionId, out var player)
+                || room.Phase != RacePhase.Waiting || room.SettingsProposal is not null)
+                throw new HubException("Oda ayarları şu anda değiştirilemez.");
+            if (room.Settings == settings)
+                throw new HubException("Oda ayarları zaten güncel.");
+            room.LastActivityAt = _timeProvider.GetUtcNow();
 
-            if (room.Players.Count != 2)
-                throw new HubException("Rövanş için iki oyuncunun da odada olması gerekir.");
-
-            if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
-                throw new HubException("Bu yarışmanın oyuncusu değilsin.");
-
-            player.Ready = true;
-
-            if (room.Players.Values.All(candidate => candidate.Ready))
+            if (room.Players.Count == 1)
             {
-                foreach (var candidate in room.Players.Values)
-                {
-                    candidate.Position = 0;
-                    candidate.Errors = 0;
-                    candidate.Keystrokes = 0;
-                    candidate.FinishedAt = null;
-                }
-
-                room.Finished = false;
-                room.StartedAt = null;
-                room.Phase = RacePhase.Countdown;
-                countdown = room.CountdownCancellation = new CancellationTokenSource();
+                ResetRound(room, settings);
+                notification = SendSettingsResolution(group, settings);
             }
-
+            else
+            {
+                var proposal = room.SettingsProposal = new RoomSettingsProposal(Guid.NewGuid(), Context.ConnectionId, settings);
+                notification = group.SendAsync("RoomSettingsProposed", new
+                {
+                    proposal.Id,
+                    proposal.FromId,
+                    fromName = player.Name,
+                    settings = BuildRoomSettings(settings)
+                });
+            }
         }
-
-        await SendReadyStatus(room);
-        if (countdown is not null)
-            await RunCountdown(room, countdown);
+        await notification;
     }
 
-    private async Task RunCountdown(
-        RoomState room,
-        CancellationTokenSource countdown)
+    public async Task RespondRoomSettings(string? roomId, Guid proposalId, bool accept)
     {
-        var token = countdown.Token;
+        var room = GetRoom(roomId);
+        var group = Clients.Group(room.Code);
+        Task notification;
+        lock (room.Lock)
+        {
+            var proposal = room.SettingsProposal;
+            if (!room.Players.ContainsKey(Context.ConnectionId) || room.Phase != RacePhase.Waiting
+                || proposal is null || proposal.Id != proposalId || (accept && proposal.FromId == Context.ConnectionId))
+                throw new HubException("Bu ayar isteği artık yanıtlanamaz.");
 
+            if (accept)
+                ResetRound(room, proposal.Settings);
+            room.SettingsProposal = null;
+            room.LastActivityAt = _timeProvider.GetUtcNow();
+            notification = SendSettingsResolution(group, accept ? proposal.Settings : null);
+        }
+        await notification;
+    }
+
+    private static Task SendSettingsResolution(IClientProxy group, RoomSettings? settings) =>
+        group.SendAsync("RoomSettingsResolved", settings is null ? null : BuildRoomSettings(settings));
+
+    public async Task RequestRematch(string? roomId, int rounds)
+    {
+        if (rounds is not (1 or 3 or 5))
+            throw new HubException("Tur sayısı 1, 3 veya 5 olmalı.");
+
+        var room = GetRoom(roomId);
+        var group = Clients.Group(room.Code);
+        Task announcement;
+        lock (room.Lock)
+        {
+            var player = RequireRematchPlayer(room);
+            if (room.Rematch is not null)
+                throw new HubException("Zaten bekleyen bir rövanş isteği var.");
+
+            var request = room.Rematch = new PendingRematch(
+                Context.ConnectionId, rounds, _timeProvider.GetUtcNow().AddSeconds(30));
+            announcement = group.SendAsync("RematchRequested", new
+            {
+                fromId = request.FromId,
+                fromName = player.Name,
+                request.Rounds
+            });
+            _ = ExpireRematch(room, group, request, announcement);
+        }
+        await announcement;
+    }
+
+    public Task RespondRematch(string? roomId, bool accept) => ResolveRematch(roomId, accept, false);
+
+    public Task CancelRematch(string? roomId) => ResolveRematch(roomId, false, true);
+
+    private async Task ResolveRematch(string? roomId, bool accept, bool cancel)
+    {
+        var room = GetRoom(roomId);
+        var group = Clients.Group(room.Code);
+        Task notification;
+        lock (room.Lock)
+        {
+            RequireRematchPlayer(room);
+            var request = room.Rematch ?? throw new HubException("Bekleyen bir rövanş isteği yok.");
+            if ((request.FromId == Context.ConnectionId) != cancel)
+                throw new HubException("Bu rövanş isteğini yalnızca ilgili oyuncu yanıtlayabilir.");
+
+            if (request.ExpiresAt <= _timeProvider.GetUtcNow())
+                notification = DeclineRematch(room, group, "expired");
+            else if (!accept)
+                notification = DeclineRematch(room, group, cancel ? "canceled" : "rejected");
+            else
+            {
+                ClearRematch(room);
+                room.Series = new RaceSeriesState(request.Rounds, room.Players.Keys);
+                ResetRound(room);
+                notification = group.SendAsync("RematchAccepted", new { series = room.Series.Snapshot() });
+            }
+        }
+        await notification;
+    }
+
+    private PlayerState RequireRematchPlayer(RoomState room)
+    {
+        if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
+            throw new HubException("Bu odanın oyuncusu değilsin.");
+        if (room.Phase != RacePhase.Finished || room.Players.Count != 2)
+            throw new HubException("Rövanş için bitmiş bir yarış ve iki oyuncu gerekli.");
+        return player;
+    }
+
+    private async Task ExpireRematch(RoomState room, IClientProxy group, PendingRematch request, Task announcement)
+    {
         try
         {
-            for (var secondsLeft = 3; secondsLeft > 0; secondsLeft--)
-            {
-                await Clients.Group(room.Code).SendAsync(
-                    "RaceCountdown",
-                    secondsLeft,
-                    token);
-                await Task.Delay(TimeSpan.FromSeconds(1), token);
-            }
+            await announcement;
+            var remaining = request.ExpiresAt - _timeProvider.GetUtcNow();
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, _timeProvider, request.Cancellation.Token);
 
-            DateTime startedAt;
+            Task notification;
             lock (room.Lock)
             {
-                if (room.Phase != RacePhase.Countdown ||
-                    room.Players.Count != 2 ||
-                    room.Players.Values.Any(player => !player.Ready))
-                {
+                if (!ReferenceEquals(room.Rematch, request))
                     return;
-                }
+                notification = DeclineRematch(room, group, "expired");
+            }
+            await notification;
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception error)
+        {
+            _logger?.LogError(error, "Rövanş bildirimi gönderilemedi.");
+        }
+        finally
+        {
+            lock (room.Lock)
+                if (ReferenceEquals(room.Rematch, request))
+                    room.Rematch = null;
+            request.Cancellation.Dispose();
+        }
+    }
 
-                startedAt = DateTime.UtcNow;
-                room.StartedAt = startedAt;
+    private static Task DeclineRematch(RoomState room, IClientProxy group, string reason)
+    {
+        ClearRematch(room);
+        return group.SendAsync("RematchDeclined", new { reason });
+    }
+
+    private static void ClearRematch(RoomState room)
+    {
+        var request = room.Rematch;
+        room.Rematch = null;
+        request?.Cancellation.Cancel();
+    }
+
+    private void ResetRound(RoomState room, RoomSettings? nextSettings = null)
+    {
+        var settings = nextSettings ?? room.Settings;
+        room.Text = _wordSelector.BuildText(settings.Level, settings.WordCount, settings.SimplifyTurkish);
+        room.Settings = settings;
+        room.StartedAt = null;
+        room.Finished = false;
+        room.Phase = RacePhase.Waiting;
+        foreach (var player in room.Players.Values)
+        {
+            player.Position = 0;
+            player.Errors = 0;
+            player.Keystrokes = 0;
+            player.LastKeyAt = null;
+            player.FinishedAt = null;
+            player.Ready = false;
+            player.MissedKeys.Clear();
+        }
+    }
+
+    private static RaceResult FinishRound(
+        RoomState room, string winnerId, DateTime now,
+        KeyValuePair<string, PlayerState>? disconnected = null)
+    {
+        room.Finished = true;
+        room.Phase = RacePhase.Finished;
+        foreach (var player in room.Players.Values)
+            player.Ready = false;
+
+        if (room.Series is { } series)
+        {
+            series.Wins[winnerId]++;
+            if (disconnected is not null)
+                series.WinnerId = winnerId;
+            else if (series.Current == series.Total)
+                series.WinnerId = series.Wins.MaxBy(pair => pair.Value).Key;
+        }
+
+        return BuildResult(room, winnerId, now, disconnected) with { Series = room.Series?.Snapshot() };
+    }
+
+    // The invocation returns after announcing the countdown so the same client can cancel it.
+    private Task StartCountdown(RoomState room, IClientProxy group)
+    {
+        room.Phase = RacePhase.Countdown;
+        var countdown = room.CountdownCancellation = new CancellationTokenSource();
+        var announcement = group.SendAsync("CountdownStarted", 3);
+        _ = CompleteCountdown(room, group, countdown, announcement);
+        return announcement;
+    }
+
+    private async Task CompleteCountdown(
+        RoomState room, IClientProxy group, CancellationTokenSource countdown, Task announcement)
+    {
+        try
+        {
+            await announcement;
+            await Task.Delay(TimeSpan.FromSeconds(3), _timeProvider, countdown.Token);
+
+            Task start;
+            lock (room.Lock)
+            {
+                if (!ReferenceEquals(room.CountdownCancellation, countdown))
+                    return;
+
+                room.StartedAt = _timeProvider.GetUtcNow().UtcDateTime;
                 room.Phase = RacePhase.Running;
                 room.CountdownCancellation = null;
+                start = group.SendAsync("RaceStarted", new { text = room.Text });
             }
-
-            await Clients.Group(room.Code).SendAsync(
-                "RaceStarted",
-                startedAt,
-                token);
+            await start;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (countdown.IsCancellationRequested)
         {
+        }
+        catch (Exception error)
+        {
+            _logger?.LogError(error, "Yarış geri sayımı tamamlanamadı.");
         }
         finally
         {
             lock (room.Lock)
             {
                 if (ReferenceEquals(room.CountdownCancellation, countdown))
+                {
                     room.CountdownCancellation = null;
+                    room.Phase = RacePhase.Waiting;
+                    foreach (var player in room.Players.Values)
+                        player.Ready = false;
+                }
             }
-
             countdown.Dispose();
         }
     }
 
-    private async Task SendReadyStatus(RoomState room)
+    private static void CancelCountdown(RoomState room)
     {
-        object[] players;
-        string phase;
-
-        lock (room.Lock)
-        {
-            players = room.Players.Select(entry => (object)new
-            {
-                id = entry.Key,
-                name = entry.Value.Name,
-                avatarId = entry.Value.AvatarId,
-                ready = entry.Value.Ready
-            }).ToArray();
-            phase = room.Phase.ToString().ToLowerInvariant();
-        }
-
-        await Clients.Group(room.Code).SendAsync(
-            "ReadyStatus",
-            new { phase, players });
+        var countdown = room.CountdownCancellation;
+        room.CountdownCancellation = null;
+        room.Phase = RacePhase.Waiting;
+        countdown?.Cancel();
     }
 
-    private static CancellationTokenSource? StartCountdownIfEveryoneReady(
-        RoomState room)
+    private Task SendReadyChanged(RoomState room)
     {
-        if (room.Players.Count != 2 ||
-            room.Players.Values.Any(player => !player.Ready))
+        lock (room.Lock)
+            return Clients.Group(room.Code).SendAsync("ReadyChanged", BuildReadyPlayers(room));
+    }
+
+    private static object[] BuildReadyPlayers(RoomState room) =>
+        room.Players.Select(entry => (object)new
         {
-            return null;
+            id = entry.Key,
+            name = entry.Value.Name,
+            avatarId = entry.Value.AvatarId,
+            ready = entry.Value.Ready
+        }).ToArray();
+
+    public Task<RaceChatMessage> SendMessage(string? roomId, string? text)
+    {
+        text = text?.Trim();
+        if (string.IsNullOrEmpty(text) || text.EnumerateRunes().Skip(140).Any())
+            throw new HubException("Mesaj 1–140 karakter olmalı.");
+
+        return SendChat(roomId, text);
+    }
+
+    public Task<RaceChatMessage> SendEmote(string? roomId, string? emoteId)
+    {
+        if (emoteId is null || !ChatEmoteIds.Contains(emoteId))
+            throw new HubException("Geçersiz emoji.");
+
+        return SendChat(roomId, "", emoteId);
+    }
+
+    private async Task<RaceChatMessage> SendChat(string? roomId, string text, string? emoteId = null)
+    {
+        var room = GetRoom(roomId);
+        RaceChatMessage message;
+        lock (room.Lock)
+        {
+            if (!room.Players.TryGetValue(Context.ConnectionId, out var player))
+                throw new HubException("Bu odanın oyuncusu değilsin.");
+            if (room.Phase is not (RacePhase.Waiting or RacePhase.Finished))
+                throw new HubException("Oyun sırasında mesaj gönderilemez.");
+
+            var now = _timeProvider.GetUtcNow();
+            lock (Context.Items)
+            {
+                if (Context.Items.TryGetValue(LastChatMessageKey, out var last) &&
+                    last is DateTimeOffset sentAt && now - sentAt < TimeSpan.FromSeconds(3))
+                    throw new HubException("Mesaj göndermek için 3 saniye bekle.");
+                Context.Items[LastChatMessageKey] = now;
+            }
+
+            message = new RaceChatMessage(player.Name, text, now)
+            {
+                EmoteId = emoteId,
+                AvatarId = emoteId is null ? null : player.AvatarId
+            };
         }
 
-        room.Phase = RacePhase.Countdown;
-        return room.CountdownCancellation = new CancellationTokenSource();
+        await Clients.OthersInGroup(room.Code).SendAsync("MessageReceived", message);
+        return message;
     }
 
     public async Task KeyPress(string? roomCode, string? key)
@@ -297,6 +523,7 @@ public class TypingHub : Hub
 
         RacePlayerProgress[] progress;
         RaceResult? result = null;
+        RaceSeriesSnapshot? nextRound = null;
         var timestamp = _timeProvider.GetUtcNow();
         var now = timestamp.UtcDateTime;
 
@@ -329,11 +556,7 @@ public class TypingHub : Hub
                 if (player.Position == room.Text.Length)
                 {
                     player.FinishedAt = now;
-                    room.Finished = true;
-                    room.Phase = RacePhase.Finished;
-                    foreach (var candidate in room.Players.Values)
-                        candidate.Ready = false;
-                    result = BuildResult(room, Context.ConnectionId, now);
+                    result = FinishRound(room, Context.ConnectionId, now);
                 }
             }
             else
@@ -345,87 +568,98 @@ public class TypingHub : Hub
             }
 
             progress = BuildProgress(room, now);
+            if (result?.Series is { WinnerId: null } && room.Series is { } series)
+            {
+                series.Current++;
+                ResetRound(room);
+                nextRound = series.Snapshot();
+            }
         }
 
-        await Clients.Group(room.Code).SendAsync("ProgressUpdated", progress);
-
+        var group = Clients.Group(room.Code);
+        await group.SendAsync("ProgressUpdated", progress);
         if (result is not null)
-            await Clients.Group(room.Code).SendAsync("RaceFinished", result);
+            await group.SendAsync("RaceFinished", result);
+        if (nextRound is not null)
+            await group.SendAsync("RoundPrepared", new { series = nextRound });
     }
+
+    public Task LeaveRoom(string? roomId) =>
+        roomId is not null && _rooms.TryGet(roomId.Trim(), out var room) && room is not null
+            ? RemovePlayerFromRoom(room, voluntary: true)
+            : Task.CompletedTask;
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-
         foreach (var entry in _rooms.Snapshot())
-        {
-            var room = entry.Value;
-            PlayerState? disconnectedPlayer = null;
-            RaceResult? result = null;
-            bool removeRoom;
-            var resetCountdown = false;
-
-            lock (room.Lock)
-            {
-                var wasRunning = room.Phase == RacePhase.Running;
-                room.Players.Remove(Context.ConnectionId, out disconnectedPlayer);
-                removeRoom = disconnectedPlayer is not null && room.Players.Count == 0;
-                if (disconnectedPlayer is not null)
-                    room.LastActivityAt = _timeProvider.GetUtcNow();
-
-                if (disconnectedPlayer is not null &&
-                    room.Phase == RacePhase.Countdown)
-                {
-                    room.CountdownCancellation?.Cancel();
-                    room.CountdownCancellation = null;
-                    room.Phase = RacePhase.Waiting;
-                    room.StartedAt = null;
-                    foreach (var player in room.Players.Values)
-                        player.Ready = false;
-                    resetCountdown = true;
-                }
-
-                if (disconnectedPlayer is not null &&
-                    wasRunning &&
-                    room.Players.Count == 1)
-                {
-                    var winner = room.Players.Single();
-                    winner.Value.FinishedAt = now;
-                    winner.Value.Ready = false;
-                    room.Finished = true;
-                    room.Phase = RacePhase.Finished;
-                    result = BuildResult(
-                        room,
-                        winner.Key,
-                        now,
-                        new KeyValuePair<string, PlayerState>(
-                            Context.ConnectionId,
-                            disconnectedPlayer));
-                }
-            }
-
-            if (disconnectedPlayer is null)
-                continue;
-
-            if (removeRoom)
-            {
-                room.CountdownCancellation?.Cancel();
-                _rooms.TryRemove(entry.Key);
-                continue;
-            }
-
-            await Clients.Group(room.Code).SendAsync(
-                "PlayerDisconnected",
-                $"{disconnectedPlayer.Name} bağlantısı kesildi.");
-
-            if (result is not null)
-                await Clients.Group(room.Code).SendAsync("RaceFinished", result);
-
-            if (resetCountdown)
-                await SendReadyStatus(room);
-        }
+            await RemovePlayerFromRoom(entry.Value, voluntary: false);
 
         await base.OnDisconnectedAsync(exception);
+    }
+
+    private async Task RemovePlayerFromRoom(RoomState room, bool voluntary)
+    {
+        var group = Clients.Group(room.Code);
+        var notifications = new List<Task>();
+        lock (room.Lock)
+        {
+            if (!room.Players.Remove(Context.ConnectionId, out var leavingPlayer))
+                return;
+
+            if (room.Players.Count == 0)
+            {
+                room.CountdownCancellation?.Cancel();
+                ClearRematch(room);
+                _rooms.TryRemove(room.Code);
+            }
+            else
+            {
+                var now = _timeProvider.GetUtcNow();
+                room.LastActivityAt = now;
+                if (room.SettingsProposal is not null)
+                {
+                    room.SettingsProposal = null;
+                    notifications.Add(SendSettingsResolution(group, null));
+                }
+                if (room.Rematch is not null)
+                    notifications.Add(DeclineRematch(room, group, "disconnected"));
+                if (room.Phase != RacePhase.Running && room.Series is { WinnerId: null })
+                {
+                    room.Series = null;
+                    notifications.Add(group.SendAsync("SeriesCanceled"));
+                }
+                if (room.Phase is RacePhase.Waiting or RacePhase.Countdown)
+                {
+                    if (room.Phase == RacePhase.Countdown)
+                    {
+                        CancelCountdown(room);
+                        notifications.Add(group.SendAsync("CountdownCanceled"));
+                    }
+                    foreach (var player in room.Players.Values)
+                        player.Ready = false;
+                }
+                if (!voluntary)
+                    notifications.Add(group.SendAsync("PlayerDisconnected", $"{leavingPlayer.Name} bağlantısı kesildi."));
+                if (room.Phase == RacePhase.Running)
+                {
+                    var winner = room.Players.Single();
+                    winner.Value.FinishedAt = now.UtcDateTime;
+                    var result = FinishRound(room, winner.Key, now.UtcDateTime,
+                        new KeyValuePair<string, PlayerState>(Context.ConnectionId, leavingPlayer));
+                    notifications.Add(group.SendAsync("RaceFinished", result));
+                }
+                else
+                {
+                    notifications.Add(group.SendAsync("ReadyChanged", BuildReadyPlayers(room)));
+                }
+                if (voluntary)
+                    notifications.Add(Clients.OthersInGroup(room.Code).SendAsync("PlayerLeft", $"{leavingPlayer.Name} oyundan ayrıldı !"));
+            }
+        }
+
+        if (voluntary)
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, room.Code);
+        await Task.WhenAll(notifications);
     }
 
     private RoomState GetRoom(string? roomCode)
@@ -528,6 +762,9 @@ public class TypingHub : Hub
                 CalculateAccuracy(player.Keystrokes, player.Errors),
                 player.FinishedAt is not null)
             {
+                DurationMs = player.FinishedAt is { } end
+                    ? (long)Math.Max(0, (end - startedAt).TotalMilliseconds)
+                    : null,
                 MissedKeys = new Dictionary<char, int>(player.MissedKeys)
             };
         }).ToArray();
@@ -553,6 +790,18 @@ public class TypingHub : Hub
         keystrokes == 0
             ? 0
             : Math.Round(100.0 * (keystrokes - errors) / keystrokes);
+
+    private static RoomSettings ParseRoomSettings(string? difficulty, int wordCount, string? characterMode)
+    {
+        try
+        {
+            return RoomSettings.Create(difficulty, wordCount, characterMode);
+        }
+        catch (ArgumentException error)
+        {
+            throw new HubException(error.Message);
+        }
+    }
 
     private static object BuildRoomSettings(RoomSettings settings) => new
     {

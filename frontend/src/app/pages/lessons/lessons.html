@@ -1,38 +1,47 @@
-<div class="lesson-page">
+<main class="game-page lesson-page">
+  <a routerLink="/" class="game-back-link">
+    <app-icon name="homepage" [size]="26" /> Ana menü
+  </a>
   <header class="page-header">
-    <h1>⌨️ Practice dersleri</h1>
-    <p class="subtitle">Parmak yerleşimini öğrenin, kendi hızınızda çalışın</p>
-    <a routerLink="/" class="race-btn">Ana menü</a>
-    <a routerLink="/race" class="race-btn">🏁 Yarışmaya Git</a>
+    <div>
+      <h1 class="game-title">Pratik dersleri</h1>
+      <p>Türkçe Q klavyede parmak yerleşimini öğren ve kendi hızında ilerle.</p>
+    </div>
+    <a routerLink="/race" class="btn-secondary">
+      <app-icon name="race-flag" [size]="26" /> Yarışa git
+    </a>
   </header>
 
-  <div class="loading" *ngIf="loading">
-    <p>Dersler yükleniyor…</p>
-  </div>
-
-  <div class="error-box" *ngIf="error">
-    <p>⚠️ {{ error }}</p>
-  </div>
+  <p class="game-panel lesson-status" role="status" *ngIf="loading">Dersler yükleniyor…</p>
+  <p class="game-panel lesson-status error-box" role="alert" *ngIf="error">{{ error }}</p>
 
   <div class="lesson-grid" *ngIf="!loading && !error">
-    <div class="lesson-card" *ngFor="let lesson of lessons; let i = index">
-      <div class="lesson-number">{{ i + 1 }}</div>
-      <div class="lesson-info">
-        <h2>{{ lesson.title }}</h2>
-        <p class="category">📂 {{ lesson.category }}</p>
-        <p class="new-keys" *ngIf="lesson.newKeys">
-          🎯 Yeni tuşlar: <strong>{{ lesson.newKeys }}</strong>
-        </p>
-        <div class="lesson-meta">
-          <span class="badge wpm">{{ lesson.targetWpm }} WPM</span>
-          <span class="badge accuracy">%{{ lesson.minAccuracy }} Doğruluk</span>
-          <span class="badge difficulty">{{ lesson.difficulty }}</span>
+    <article class="game-panel lesson-card" *ngFor="let lesson of lessons; let i = index">
+      <div class="lesson-heading">
+        <div>
+          <p class="category">{{ lesson.category }}</p>
+          <h2>{{ lesson.title }}</h2>
         </div>
-        <div class="lesson-preview">
-          <code>{{ lesson.text }}</code>
-        </div>
+        <span class="lesson-order" aria-label="Ders sırası">{{ i + 1 | number:'2.0-0' }}</span>
       </div>
-      <a [routerLink]="['/practice', lesson.id]" class="start-btn">Çalışmaya başla ›</a>
-    </div>
+
+      <p class="new-keys">
+        <ng-container *ngIf="lesson.newKeys; else review">Yeni tuşlar <kbd>{{ lesson.newKeys }}</kbd></ng-container>
+        <ng-template #review>Önceki tuşları tekrar et</ng-template>
+      </p>
+      <dl class="lesson-meta">
+        <div><dt>Hız hedefi</dt><dd>{{ lesson.targetWpm }} WPM</dd></div>
+        <div><dt>Doğruluk hedefi</dt><dd>%{{ lesson.minAccuracy }}</dd></div>
+        <div><dt>Seviye</dt><dd>{{ difficultyLabels[lesson.difficulty] ?? lesson.difficulty }}</dd></div>
+      </dl>
+      <div class="lesson-preview" aria-label="Örnek metin"><code>{{ lesson.text }}</code></div>
+      <a
+        [routerLink]="['/practice', lesson.id]"
+        [attr.aria-label]="lesson.title + ' dersine başla'"
+        class="btn-secondary start-btn"
+      >
+        Çalışmaya başla <span aria-hidden="true">→</span>
+      </a>
+    </article>
   </div>
-</div>
+</main>

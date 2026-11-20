@@ -1,0 +1,33 @@
+:host { display: block; }
+
+.keyboard {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid #3d2563;
+  border-radius: 12px;
+  background: #130a22;
+}
+
+.keyboard.dimmed { opacity: .48; }
+.keyboard-row { display: flex; justify-content: center; gap: clamp(3px, .8vw, 7px); }
+.key {
+  display: grid;
+  min-inline-size: 0;
+  inline-size: 43px;
+  min-block-size: 37px;
+  place-items: center;
+  border: 1px solid #3d2563;
+  border-radius: 6px;
+  color: #f5f0ff;
+  background: #2a1745;
+  box-shadow: 0 3px 0 #1b102b;
+  font: 600 .875rem ui-monospace, Consolas, monospace;
+}
+.key.special { inline-size: 59px; }
+.keyboard-row:last-child .key { inline-size: 220px; }
+.key.next { background: #ffd60a; color: #201302; }
+.key.correct { background: #3fb950; color: #061c0a; }
+.key.wrong { background: #e5484d; color: #20060a; }
+
+@media (width < 640px) { :host { display: none; } }

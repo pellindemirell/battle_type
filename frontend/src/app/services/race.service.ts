@@ -4,7 +4,7 @@ import * as signalR from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { environment } from '../../environment';
 import { PlayerProfile } from '../models/player-profile';
-import { RaceCharacterMode, RaceDifficulty } from '../models/race';
+import { RaceCharacterMode, RaceChatMessage, RaceDifficulty, RaceRoomSettings } from '../models/race';
 
 @Injectable({
   providedIn: 'root'
@@ -118,14 +118,51 @@ export class RaceService {
     );
   }
 
-  async setReady(roomCode: string): Promise<void> {
+  async setReady(roomCode: string, ready: boolean): Promise<void> {
     await this.connect();
-    await this.requireConnection().invoke('SetReady', roomCode);
+    await this.requireConnection().invoke('Ready', roomCode, ready);
   }
 
-  async rematch(roomCode: string): Promise<void> {
+  async proposeRoomSettings(roomCode: string, settings: RaceRoomSettings): Promise<void> {
     await this.connect();
-    await this.requireConnection().invoke('Rematch', roomCode);
+    await this.requireConnection().invoke(
+      'ProposeRoomSettings', roomCode, settings.difficulty, settings.wordCount, settings.characterMode
+    );
+  }
+
+  async respondRoomSettings(roomCode: string, proposalId: string, accept: boolean): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('RespondRoomSettings', roomCode, proposalId, accept);
+  }
+
+  async leaveRoom(roomCode: string): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('LeaveRoom', roomCode);
+  }
+
+  async requestRematch(roomCode: string, rounds: number): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('RequestRematch', roomCode, rounds);
+  }
+
+  async respondRematch(roomCode: string, accept: boolean): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('RespondRematch', roomCode, accept);
+  }
+
+  async cancelRematch(roomCode: string): Promise<void> {
+    await this.connect();
+    await this.requireConnection().invoke('CancelRematch', roomCode);
+  }
+
+  async sendMessage(roomCode: string, text: string): Promise<RaceChatMessage> {
+    await this.connect();
+    return this.requireConnection().invoke<RaceChatMessage>('SendMessage', roomCode, text);
+  }
+
+  async sendEmote(roomCode: string, emoteId: string): Promise<RaceChatMessage> {
+    await this.connect();
+    return this.requireConnection().invoke<RaceChatMessage>('SendEmote', roomCode, emoteId);
   }
 
   async keyPress(roomCode: string, key: string): Promise<void> {

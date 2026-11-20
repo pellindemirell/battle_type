@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.Features;
@@ -86,6 +87,7 @@ public sealed class TypingHubTests
         Assert.Equal(expectedAvatar, creator.AvatarId);
         var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "RoomCreated");
         Assert.Equal(expectedAvatar, ReadProperty<string>(message.Arguments[0], "avatarId"));
+        Assert.Null(message.Arguments[0]!.GetType().GetProperty("text"));
     }
 
     [Theory]
@@ -105,10 +107,277 @@ public sealed class TypingHubTests
         Assert.Equal("avatar-01", fixture.Room.Players["player-1"].AvatarId);
         Assert.Equal(expectedAvatar, fixture.Room.Players["player-2"].AvatarId);
         var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "PlayerJoined");
+        Assert.Null(message.Arguments[0]!.GetType().GetProperty("text"));
         var players = ReadProperty<RacePlayerProgress[]>(message.Arguments[0], "players");
         Assert.Equal(2, players.Length);
         Assert.Equal("avatar-01", players.Single(player => player.Id == "player-1").AvatarId);
         Assert.Equal(expectedAvatar, players.Single(player => player.Id == "player-2").AvatarId);
+    }
+
+    [Fact]
+    public async Task Ready_SendsTextOnlyAfterBothPlayersAndThreeSeconds()
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+
+        await fixture.Hub.Ready(fixture.Room.Code, true);
+        Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+        Assert.DoesNotContain(fixture.Clients.Messages, item => item.Method == "CountdownStarted");
+
+        await opponent.Ready(fixture.Room.Code, true);
+        Assert.Equal(RacePhase.Countdown, fixture.Room.Phase);
+        var countdown = Assert.Single(fixture.Clients.Messages, item => item.Method == "CountdownStarted");
+        Assert.Equal(3, countdown.Arguments[0]);
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(2999));
+        await fixture.Hub.KeyPress(fixture.Room.Code, "a");
+        Assert.Equal(0, fixture.Player.Keystrokes);
+        Assert.Null(fixture.Room.StartedAt);
+
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        var started = await WaitForMessage(fixture, "RaceStarted");
+        Assert.Equal(RacePhase.Running, fixture.Room.Phase);
+        Assert.Equal(fixture.TimeProvider.GetUtcNow().UtcDateTime, fixture.Room.StartedAt);
+        Assert.Equal("a", ReadProperty<string>(started.Arguments[0], "text"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Countdown_IsCanceledByUnreadyOrDisconnect(bool disconnect)
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.Ready(fixture.Room.Code, true);
+        await opponent.Ready(fixture.Room.Code, true);
+
+        if (disconnect)
+            await opponent.OnDisconnectedAsync(null);
+        else
+            await opponent.Ready(fixture.Room.Code, false);
+
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(4));
+        Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+        Assert.Null(fixture.Room.StartedAt);
+        Assert.Contains(fixture.Clients.Messages, item => item.Method == "CountdownCanceled");
+        Assert.DoesNotContain(fixture.Clients.Messages, item => item.Method == "RaceStarted");
+    }
+
+    private static HubFixture CreateWaitingRoom()
+    {
+        var fixture = CreateRunningRoom("a");
+        fixture.Room.Phase = RacePhase.Waiting;
+        fixture.Room.StartedAt = null;
+        fixture.Room.Players.Add("player-2", new PlayerState { Name = "Other" });
+        return fixture;
+    }
+
+    private static async Task<SentMessage> WaitForMessage(HubFixture fixture, string method, int occurrence = 1)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            var message = fixture.Clients.Messages.Where(item => item.Method == method).ElementAtOrDefault(occurrence - 1);
+            if (message is not null)
+                return message;
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException($"Expected {method}.");
+    }
+
+    [Fact]
+    public async Task Chat_ValidatesMembershipLengthPhaseAndPerConnectionRate()
+    {
+        var fixture = CreateWaitingRoom();
+        var intruder = CreateHubForPlayer(fixture, "outsider");
+        await Assert.ThrowsAsync<HubException>(() => intruder.SendMessage(fixture.Room.Code, "Merhaba"));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "   "));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, new string('a', 141)));
+
+        var sent = await fixture.Hub.SendMessage(fixture.Room.Code, " <b>Merhaba</b> ");
+        Assert.Equal("<b>Merhaba</b>", sent.Text);
+        Assert.Equal("Player", sent.FromName);
+        var notification = Assert.Single(fixture.Clients.Messages, message => message.Method == "MessageReceived");
+        Assert.Equal(sent, notification.Arguments[0]);
+
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(2999));
+        var rateError = await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Yine"));
+        Assert.Equal("Mesaj göndermek için 3 saniye bekle.", rateError.Message);
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        await fixture.Hub.SendMessage(fixture.Room.Code, new string('a', 140));
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(3));
+        fixture.Room.Phase = RacePhase.Running;
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Yarış"));
+    }
+
+    [Fact]
+    public async Task Emotes_AllowOnlyCatalogIdsAndShareTheTextMessageCooldown()
+    {
+        var fixture = CreateWaitingRoom();
+        var intruder = CreateHubForPlayer(fixture, "outsider");
+        await Assert.ThrowsAsync<HubException>(() => intruder.SendEmote(fixture.Room.Code, "01"));
+        foreach (var id in new[] { null, "1", "00", "21", "01.gif", "../01", "<img>" })
+            await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendEmote(fixture.Room.Code, id));
+        Assert.Empty(fixture.Clients.Messages);
+
+        for (var index = 1; index <= 20; index++)
+        {
+            var id = index.ToString("00", System.Globalization.CultureInfo.InvariantCulture);
+            var message = await fixture.Hub.SendEmote(fixture.Room.Code, id);
+            Assert.Equal(id, message.EmoteId);
+            Assert.Equal(fixture.Player.AvatarId, message.AvatarId);
+            Assert.Empty(message.Text);
+            Assert.Equal(message, fixture.Clients.Messages.Last().Arguments[0]);
+            Assert.Equal("MessageReceived", fixture.Clients.Messages.Last().Method);
+            await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendMessage(fixture.Room.Code, "Acele"));
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(3));
+        }
+
+        await fixture.Hub.SendMessage(fixture.Room.Code, "Merhaba");
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendEmote(fixture.Room.Code, "01"));
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(3));
+        fixture.Room.Phase = RacePhase.Running;
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.SendEmote(fixture.Room.Code, "01"));
+    }
+
+    [Fact]
+    public async Task RoomSettings_RequireOtherPlayerApprovalAndResetReadinessOnlyWhenAccepted()
+    {
+        var fixture = CreateWaitingRoom();
+        var room = fixture.Room;
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        var outsider = CreateHubForPlayer(fixture, "outsider");
+        await fixture.Hub.Ready(room.Code, true);
+        await fixture.Hub.ProposeRoomSettings(room.Code, "easy", 45, "simplified");
+        var first = Assert.IsType<RoomSettingsProposal>(room.SettingsProposal);
+        Assert.Equal(RoomSettings.Default, room.Settings);
+        Assert.Equal("a", room.Text);
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RespondRoomSettings(room.Code, first.Id, true));
+        await Assert.ThrowsAsync<HubException>(() => outsider.RespondRoomSettings(room.Code, first.Id, true));
+        await Assert.ThrowsAsync<HubException>(() => opponent.Ready(room.Code, true));
+
+        await opponent.RespondRoomSettings(room.Code, first.Id, false);
+        Assert.Null(room.SettingsProposal);
+        Assert.True(fixture.Player.Ready);
+        Assert.Equal(RoomSettings.Default, room.Settings);
+
+        await fixture.Hub.ProposeRoomSettings(room.Code, "easy", 45, "simplified");
+        var second = Assert.IsType<RoomSettingsProposal>(room.SettingsProposal);
+        await Assert.ThrowsAsync<HubException>(() => opponent.RespondRoomSettings(room.Code, first.Id, true));
+        await opponent.RespondRoomSettings(room.Code, second.Id, true);
+        Assert.Equal(second.Settings, room.Settings);
+        Assert.Equal(45, room.Text.Split(' ').Length);
+        Assert.All(room.Players.Values, player => Assert.False(player.Ready));
+        Assert.Null(room.SettingsProposal);
+    }
+
+    [Fact]
+    public async Task LeaveRoom_CancelsSettingsProposalAndNotifiesWithNicknameOnce()
+    {
+        var fixture = CreateWaitingRoom();
+        var room = fixture.Room;
+        await fixture.Hub.ProposeRoomSettings(room.Code, "easy", 45, "simplified");
+
+        await fixture.Hub.LeaveRoom(room.Code);
+        await fixture.Hub.LeaveRoom(room.Code);
+        await fixture.Hub.OnDisconnectedAsync(null);
+
+        Assert.Equal("player-2", Assert.Single(room.Players).Key);
+        Assert.Null(room.SettingsProposal);
+        var notice = Assert.Single(fixture.Clients.Messages, message => message.Method == "PlayerLeft");
+        Assert.Equal("Player oyundan ayrıldı !", notice.Arguments[0]);
+        Assert.DoesNotContain(fixture.Clients.Messages, message => message.Method == "PlayerDisconnected");
+    }
+
+    [Fact]
+    public async Task Rematch_RequiresFinishedRaceAndOneValidRequest()
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RequestRematch(fixture.Room.Code, 3));
+
+        fixture.Room.Phase = RacePhase.Finished;
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RequestRematch(fixture.Room.Code, 2));
+        await fixture.Hub.RequestRematch(fixture.Room.Code, 3);
+        await Assert.ThrowsAsync<HubException>(() => opponent.RequestRematch(fixture.Room.Code, 5));
+        await Assert.ThrowsAsync<HubException>(() => fixture.Hub.RespondRematch(fixture.Room.Code, true));
+        await fixture.Hub.CancelRematch(fixture.Room.Code);
+    }
+
+    [Theory]
+    [InlineData("rejected")]
+    [InlineData("expired")]
+    public async Task Rematch_DeclineAndExpiryLeaveTheRaceFinished(string reason)
+    {
+        var fixture = CreateWaitingRoom();
+        fixture.Room.Phase = RacePhase.Finished;
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.RequestRematch(fixture.Room.Code, 3);
+
+        if (reason == "rejected")
+            await opponent.RespondRematch(fixture.Room.Code, false);
+        else
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(30));
+
+        var response = await WaitForMessage(fixture, "RematchDeclined");
+        Assert.Equal(reason, ReadProperty<string>(response.Arguments[0], "reason"));
+        Assert.Null(fixture.Room.Rematch);
+        Assert.Null(fixture.Room.Series);
+        Assert.Equal(RacePhase.Finished, fixture.Room.Phase);
+        await Assert.ThrowsAsync<HubException>(() => opponent.RespondRematch(fixture.Room.Code, true));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Rematch_AcceptanceAndRoundResultsPreserveWinningScore(int rounds)
+    {
+        var fixture = CreateWaitingRoom();
+        fixture.Room.Phase = RacePhase.Finished;
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.RequestRematch(fixture.Room.Code, rounds);
+        await opponent.RespondRematch(fixture.Room.Code, true);
+
+        var accepted = await WaitForMessage(fixture, "RematchAccepted");
+        Assert.Null(accepted.Arguments[0]!.GetType().GetProperty("text"));
+        var initial = ReadProperty<RaceSeriesSnapshot>(accepted.Arguments[0], "series");
+        Assert.Equal(rounds, initial.Total);
+        Assert.Equal(1, initial.Current);
+        Assert.All(initial.Wins.Values, score => Assert.Equal(0, score));
+
+        for (var round = 1; round <= rounds; round++)
+        {
+            Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+            Assert.NotEqual("a", fixture.Room.Text);
+            fixture.Room.Text = "a";
+            await fixture.Hub.Ready(fixture.Room.Code, true);
+            await opponent.Ready(fixture.Room.Code, true);
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(3));
+            await WaitForMessage(fixture, "RaceStarted", round);
+            var roundWinner = round == 2 ? opponent : fixture.Hub;
+            await roundWinner.KeyPress(fixture.Room.Code, "a");
+            var finished = await WaitForMessage(fixture, "RaceFinished", round);
+            var result = Assert.IsType<RaceResult>(finished.Arguments[0]);
+            Assert.NotNull(result.Series);
+            Assert.Equal(round, result.Series.Current);
+            Assert.Equal(round, result.Series.Wins.Values.Sum());
+
+            if (round < rounds)
+            {
+                var next = await WaitForMessage(fixture, "RoundPrepared", round);
+                Assert.Null(next.Arguments[0]!.GetType().GetProperty("text"));
+                Assert.Null(result.Series.WinnerId);
+            }
+            else
+            {
+                Assert.Equal("player-1", result.Series.WinnerId);
+                Assert.Equal(rounds == 1 ? 1 : 2, result.Series.Wins["player-1"]);
+                Assert.Equal(RacePhase.Finished, fixture.Room.Phase);
+            }
+        }
     }
 
     private static T ReadProperty<T>(object? payload, string name)
@@ -182,6 +451,7 @@ public sealed class TypingHubTests
             message => message.Method == "RaceFinished");
         var result = Assert.IsType<RaceResult>(finishedEvent.Arguments[0]);
         var playerResult = Assert.Single(result.Players);
+        Assert.Equal(20L, playerResult.DurationMs);
         Assert.Equal(1, playerResult.MissedKeys['a']);
         Assert.False(playerResult.MissedKeys.ContainsKey('x'));
     }
@@ -214,6 +484,7 @@ public sealed class TypingHubTests
         Assert.Equal("avatar-06", result.Players.Single(player => player.Id == result.WinnerId).AvatarId);
         Assert.Equal(new[] { "player-2", "player-1" }, result.Players.Select(player => player.Id));
         Assert.False(result.Players.Single(player => player.Id == "player-1").Finished);
+        Assert.Null(result.Players.Single(player => player.Id == "player-1").DurationMs);
         Assert.True(result.Players.Single(player => player.Id == "player-2").Finished);
 
         var remainingHub = CreateHubForPlayer(fixture, "player-2");
@@ -279,17 +550,84 @@ public sealed class TypingHubTests
     private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;
+        private readonly List<ManualTimer> _timers = [];
 
-        public override DateTimeOffset GetUtcNow() => _now;
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_timers)
+                return _now;
+        }
 
-        public void Advance(TimeSpan elapsed) => _now += elapsed;
+        public override ITimer CreateTimer(
+            TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        public void Advance(TimeSpan elapsed)
+        {
+            ManualTimer[] expired;
+            lock (_timers)
+            {
+                _now += elapsed;
+                expired = _timers.Where(timer => timer.DueAt <= _now).ToArray();
+                foreach (var timer in expired)
+                    _timers.Remove(timer);
+            }
+            foreach (var timer in expired)
+                timer.Fire();
+        }
+
+        private sealed class ManualTimer(ManualTimeProvider clock, TimerCallback callback, object? state)
+            : ITimer
+        {
+            private bool _disposed;
+            public DateTimeOffset DueAt { get; private set; }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                Assert.Equal(Timeout.InfiniteTimeSpan, period);
+                lock (clock._timers)
+                {
+                    if (_disposed)
+                        return false;
+
+                    clock._timers.Remove(this);
+                    if (dueTime != Timeout.InfiniteTimeSpan)
+                    {
+                        DueAt = clock._now + dueTime;
+                        clock._timers.Add(this);
+                    }
+                    return true;
+                }
+            }
+
+            public void Fire() => callback(state);
+
+            public void Dispose()
+            {
+                lock (clock._timers)
+                {
+                    _disposed = true;
+                    clock._timers.Remove(this);
+                }
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     public class RecordingHubCallerClients : DispatchProxy
     {
-        private readonly List<SentMessage> _messages = [];
+        private readonly ConcurrentQueue<SentMessage> _messages = new();
 
-        public IReadOnlyList<SentMessage> Messages => _messages;
+        public IReadOnlyList<SentMessage> Messages => _messages.ToArray();
 
         protected override object? Invoke(
             MethodInfo? targetMethod,
@@ -300,7 +638,7 @@ public sealed class TypingHubTests
     public sealed record SentMessage(string Method, object?[] Arguments);
 
     private sealed class RecordingClientProxy(
-        List<SentMessage> messages) : ISingleClientProxy
+        ConcurrentQueue<SentMessage> messages) : ISingleClientProxy
     {
         public Task<T> InvokeCoreAsync<T>(
             string method,
@@ -313,7 +651,7 @@ public sealed class TypingHubTests
             object?[] args,
             CancellationToken cancellationToken = default)
         {
-            messages.Add(new SentMessage(method, args));
+            messages.Enqueue(new SentMessage(method, args));
             return Task.CompletedTask;
         }
     }

@@ -8,6 +8,13 @@ export interface RaceRoomSettings {
   characterMode: RaceCharacterMode;
 }
 
+export interface RoomSettingsProposal {
+  id: string;
+  fromId: string;
+  fromName: string;
+  settings: RaceRoomSettings;
+}
+
 export interface RacePlayerProgress {
   id: string;
   name: string;
@@ -31,19 +38,39 @@ export interface RacePlayerResult {
   wpm: number;
   accuracy: number;
   finished: boolean;
+  durationMs: number | null;
 }
 
 export interface RaceResult {
   winnerId: string;
   players: RacePlayerResult[];
+  series?: RaceSeries | null;
 }
 
-export interface RaceReadyStatus {
-  phase: 'waiting' | 'countdown' | 'running' | 'finished';
-  players: Array<{
-    id: string;
-    name: string;
-    avatarId: string;
-    ready: boolean;
-  }>;
+export interface RaceSeries {
+  total: number;
+  current: number;
+  wins: Record<string, number>;
+  winnerId: string | null;
+}
+
+export interface RematchOffer {
+  fromId: string;
+  fromName: string;
+  rounds: number;
+}
+
+export interface RaceChatMessage {
+  fromName: string;
+  text: string;
+  ts: string;
+  emoteId?: string;
+  avatarId?: string;
+}
+
+export interface RaceReadyPlayer {
+  id: string;
+  name: string;
+  avatarId: string;
+  ready: boolean;
 }

@@ -1,218 +1,115 @@
-.lesson-page {
-  max-width: 1000px;
-  margin: 24px auto 40px;
-  padding: 24px;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+:host { display: block; }
+
+.lesson-page { display: grid; gap: 15px; }
+
+.game-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 44px;
 }
 
 .page-header {
-  text-align: center;
-  margin-bottom: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-block-end: 6px;
 
-  h1 {
-    font-size: 2.5rem;
-    color: #16213e;
-    margin-bottom: 8px;
-  }
-
-  .subtitle {
-    color: #666;
-    font-size: 1.1rem;
-    margin-bottom: 20px;
-  }
-}
-
-.race-btn {
-  display: inline-block;
-  padding: 12px 28px;
-  background: #b4233b;
-  color: #fff;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 1rem;
-  transition: background 0.2s;
-
-  &:hover { background: #921b31; }
-}
-
-.loading, .error-box {
-  text-align: center;
-  padding: 40px;
-  font-size: 1.1rem;
-  color: #666;
-}
-
-.error-box {
-  background: #fff3f3;
-  border: 1px solid #ffcdd2;
-  border-radius: 10px;
-  color: #c62828;
+  p { margin-block-start: 7px; color: var(--game-muted); }
 }
 
 .lesson-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .lesson-card {
+  --game-panel-padding: clamp(16px, 2.3vw, 24px);
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  background: #fff;
-  border: 2px solid #e8ecf0;
-  border-radius: 16px;
-  transition: box-shadow 0.2s, border-color 0.2s;
-  position: relative;
+  align-items: stretch;
+  gap: 12px;
 
-  &:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-    border-color: #0f3460;
-  }
+  &:focus-within { border-color: var(--game-control-border); }
 }
 
-.lesson-number {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
-  background: #0f3460;
-  color: #fff;
-  border-radius: 50%;
+.lesson-heading {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.lesson-info {
-  flex: 1;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
 
   h2 {
-    font-size: 1.2rem;
-    color: #16213e;
-    margin-bottom: 8px;
-    padding-right: 44px;
+    margin-block-start: 3px;
+    font: 700 1.3125rem/1.18 var(--game-display);
+    letter-spacing: -.02em;
+    overflow-wrap: anywhere;
   }
 }
 
-.category {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 6px;
+.category { color: #d7b4f7; font-size: .8125rem; font-weight: 600; }
+
+.lesson-order {
+  padding: 5px 8px;
+  border: 1px solid var(--game-border);
+  border-radius: 8px;
+  color: var(--game-muted);
+  background: var(--game-field);
+  font: 500 .8125rem var(--game-mono);
 }
 
-.new-keys {
-  color: #555;
-  font-size: 0.95rem;
-  margin-bottom: 10px;
+.new-keys { color: var(--game-muted); font-size: .875rem; }
 
-  strong {
-    font-family: monospace;
-    background: #f0f4ff;
-    padding: 2px 8px;
-    border-radius: 4px;
-    color: #0f3460;
-    letter-spacing: 2px;
-  }
+.new-keys kbd {
+  display: inline-block;
+  margin-inline-start: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--game-border);
+  border-radius: 6px;
+  color: var(--game-text);
+  background: var(--game-field);
+  font: 600 .8125rem var(--game-mono);
 }
 
 .lesson-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
-}
+  gap: 8px 15px;
+  padding-block-start: 10px;
+  border-block-start: 1px solid var(--game-border);
 
-.badge {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-
-  &.wpm       { background: #e3f2fd; color: #1565c0; }
-  &.accuracy  { background: #e8f5e9; color: #2e7d32; }
-  &.difficulty { background: #fff8e1; color: #e65100; }
+  dt { margin-block-end: 3px; color: var(--game-muted); font-size: .8125rem; }
+  dd { font: 600 .8125rem var(--game-mono); overflow-wrap: anywhere; }
 }
 
 .lesson-preview {
-  background: #f8f9fa;
+  min-inline-size: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--game-border);
   border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
+  background: var(--game-field);
 
   code {
-    font-family: monospace;
-    font-size: 1rem;
-    letter-spacing: 2px;
-    color: #333;
+    display: block;
+    overflow: hidden;
+    color: var(--game-muted);
+    font: 400 .8125rem/1.4 var(--game-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 .start-btn {
-  display: inline-block;
-  text-align: center;
-  padding: 10px 20px;
-  background: #0f3460;
-  color: #fff;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 600;
-  transition: background 0.2s;
-  align-self: flex-start;
-
-  &:hover { background: #16213e; }
+  align-self: start;
+  margin-block-start: auto;
 }
 
-.lesson-page {
-  color: #f4efff;
-}
+.lesson-status { color: var(--game-muted); }
+.error-box { color: var(--game-error); border-color: #784154; }
 
-.page-header h1,
-.lesson-info h2 {
-  color: #f4efff;
-}
-
-.page-header .subtitle,
-.loading,
-.category,
-.new-keys {
-  color: #c9c0da;
-}
-
-.lesson-card,
-.error-box {
-  border-color: rgba(224, 212, 255, .18);
-  background: rgba(10, 6, 20, .72);
-  color: #f4efff;
-  backdrop-filter: blur(12px);
-}
-
-.error-box {
-  border-color: rgba(255, 115, 135, .45);
-  color: #ffb8c2;
-}
-
-.new-keys strong,
-.lesson-preview,
-.results-table-wrapper {
-  background: rgba(25, 16, 41, .88);
-}
-
-.new-keys strong,
-.lesson-preview code {
-  color: #eee8ff;
-}
-
-.badge {
-  &.wpm { background: rgba(42, 91, 145, .55); color: #d3e8ff; }
-  &.accuracy { background: rgba(38, 104, 68, .52); color: #c9f5d8; }
-  &.difficulty { background: rgba(126, 85, 24, .54); color: #ffe2a6; }
-}
-
-@media (max-width: 600px) {
-  .lesson-grid { grid-template-columns: 1fr; }
+@media (max-width: 640px) {
+  .lesson-grid { grid-template-columns: minmax(0, 1fr); }
 }

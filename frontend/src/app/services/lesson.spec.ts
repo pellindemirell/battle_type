@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { firstValueFrom } from 'rxjs';
 import { LessonService } from './lesson.service';
 
 describe('LessonService', () => {
@@ -12,11 +13,11 @@ describe('LessonService', () => {
     service = TestBed.inject(LessonService);
   });
 
-  it('returns the active lessons from the bundled data', () => {
-    service.getLessons().subscribe((result) => {
-      expect(result.length).toBe(4);
-      expect(result.map((lesson) => lesson.id)).toEqual([1, 2, 3, 4]);
-    });
+  it('returns the expanded active catalog and preserves the first four lesson IDs', async () => {
+    const lessons = await firstValueFrom(service.getLessons());
+    expect(lessons).toHaveLength(24);
+    expect(lessons.slice(0, 4).map((lesson) => lesson.id)).toEqual([1, 2, 3, 4]);
+    expect(new Set(lessons.map((lesson) => lesson.id)).size).toBe(lessons.length);
   });
 
   it('returns the requested lesson without an API request', () => {

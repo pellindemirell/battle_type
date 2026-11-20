@@ -1,0 +1,29 @@
+.icon-button {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--game-gold);
+    outline-offset: 3px;
+  }
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.06);
+      box-shadow: 0 0 14px #b75def66;
+    }
+  }
+
+  &:active:not(:disabled) { transform: scale(.94); }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:is(:hover, :active):not(:disabled) { transform: none; }
+  }
+}
+
+.room-code-box .icon-button {
+  padding-inline: 7px;
+  font-size: .8rem;
+}

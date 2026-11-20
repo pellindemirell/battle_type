@@ -1,5 +1,6 @@
 import { afterEach } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { Race } from './race';
 import { PLAYER_PROFILE_STORAGE_KEY } from '../../models/player-profile';
 import { RaceService } from '../../services/race.service';
@@ -16,8 +17,15 @@ describe('Race', () => {
     joinRoom: ReturnType<typeof vi.fn>;
     keyPress: ReturnType<typeof vi.fn>;
     setReady: ReturnType<typeof vi.fn>;
-    rematch: ReturnType<typeof vi.fn>;
+    requestRematch: ReturnType<typeof vi.fn>;
   };
+
+  const settings = { difficulty: 'easy', wordCount: 30, characterMode: 'full' };
+
+  function receive(event: string, payload?: unknown): void {
+    const [, handler] = raceService.on.mock.calls.find(([name]) => name === event)!;
+    handler(payload);
+  }
 
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -36,12 +44,12 @@ describe('Race', () => {
       joinRoom: vi.fn().mockResolvedValue(undefined),
       keyPress: vi.fn().mockResolvedValue(undefined),
       setReady: vi.fn().mockResolvedValue(undefined),
-      rematch: vi.fn().mockResolvedValue(undefined)
+      requestRematch: vi.fn().mockResolvedValue(undefined)
     };
 
     await TestBed.configureTestingModule({
       imports: [Race],
-      providers: [{ provide: RaceService, useValue: raceService }]
+      providers: [provideRouter([]), { provide: RaceService, useValue: raceService }]
     }).compileComponents();
 
     fixture = TestBed.createComponent(Race);
@@ -50,8 +58,8 @@ describe('Race', () => {
   });
 
   it('shows the wrong key and sends only that key to the hub', () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
     component.raceStarted = true;
-    component.roomCode = 'ABCDE';
     component.targetText = 'cat';
     component.opponentName = 'Opponent';
     const event = new KeyboardEvent('keydown', {
@@ -69,6 +77,29 @@ describe('Race', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.wrong-key-badge')?.textContent)
       .toContain('x');
+  });
+
+  it('disables chat during a race and never uses its input as a race key', async () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input[name="chatText"]') as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+
+    receive('RaceStarted', { text: 'a' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(input.disabled).toBe(true);
+    const event = new KeyboardEvent('keydown', { key: 'a', cancelable: true });
+    Object.defineProperty(event, 'target', { value: input });
+    component.onKeyDown(event);
+    expect(raceService.keyPress).not.toHaveBeenCalled();
+
+    receive('MessageReceived', { fromName: 'Ece', text: '<b>Merhaba</b>', ts: '2026-01-01T00:00:00Z' });
+    fixture.detectChanges();
+    const toast = fixture.nativeElement.querySelector('.chat-toast');
+    expect(toast.querySelector('b')).toBeNull();
+    expect(toast.textContent).toContain('<b>Merhaba</b>');
+    expect(component.unreadChat).toBe(1);
   });
 
   it('updates Caps Lock state even before the race starts', () => {
@@ -93,9 +124,8 @@ describe('Race', () => {
     component.raceFinished = true;
     await component.requestRematch();
 
-    expect(raceService.setReady).toHaveBeenCalledWith('ABCDE');
-    expect(raceService.rematch).toHaveBeenCalledWith('ABCDE');
-    expect(component.rematchRequested).toBe(true);
+    expect(raceService.setReady).toHaveBeenCalledWith('ABCDE', true);
+    expect(raceService.requestRematch).toHaveBeenCalledWith('ABCDE', 3);
   });
 
   it('creates a room with the selected difficulty, length, and character mode', async () => {
@@ -255,31 +285,53 @@ describe('Race', () => {
     expect(settings.textContent).toContain('Sadeleştirilmiş karakter');
   });
 
-  it('hides the text until an opponent joins and keeps characters grouped by word', () => {
-    component.targetText = 'first second';
-    expect(component.targetWords).toHaveLength(2);
+  it('ignores further readiness clicks for three seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      receive('RoomCreated', { roomCode: 'ABCDE', settings });
+      await component.setReady();
+      vi.advanceTimersByTime(2999);
+      await component.setReady();
+      expect(raceService.setReady).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      await component.setReady();
+      expect(raceService.setReady).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('renders an unrecognized emote as safe text', () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
+    receive('MessageReceived', { fromName: 'Ece', text: '', emoteId: '/untrusted.gif', ts: '2026-01-01T00:00:00Z' });
     fixture.detectChanges();
 
+    const history = fixture.nativeElement.querySelector('.chat-history');
+    expect(history.querySelector('app-chat-emote')).toBeNull();
+    expect(history.textContent).toContain('Bilinmeyen emoji');
+  });
+
+  it('gates the race text and typing until the server starts after the in-box countdown', () => {
+    receive('RoomCreated', { roomCode: 'ABCDE', settings });
+    receive('CountdownStarted', 3);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.target-text-box .countdown-number').textContent)
+      .toContain('3');
     expect(fixture.nativeElement.querySelector('.target-text')).toBeNull();
+    component.onKeyDown(new KeyboardEvent('keydown', { key: 'f' }));
+    expect(raceService.keyPress).not.toHaveBeenCalled();
+
+    receive('CountdownCanceled');
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.waiting-text')?.textContent)
-      .toContain('Yazılacak Metin');
+      .toContain('Her iki oyuncu hazır olunca başlar');
 
-    const opponentFixture = TestBed.createComponent(Race);
-    const opponentComponent = opponentFixture.componentInstance;
-    opponentComponent.targetText = 'first second';
-    opponentComponent.opponentName = 'Opponent';
-    opponentFixture.detectChanges();
-
-    expect(opponentFixture.nativeElement.querySelector('.target-text')?.textContent)
-      .toContain('first');
-    const words = Array.from(
-      opponentFixture.nativeElement.querySelectorAll('.target-word')
-    ) as HTMLElement[];
-    expect(words).toHaveLength(2);
-    expect(words.map(word => word.textContent?.replace(/\u00a0/g, ' ').trim()))
-      .toEqual(['first', 'second']);
-    expect(words[0].querySelector('.next-key')?.textContent).toContain('f');
-    opponentFixture.destroy();
+    receive('RaceStarted', { text: 'first second' });
+    fixture.detectChanges();
+    expect(component.targetWords).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('.target-text')?.textContent).toContain('first');
+    expect(fixture.nativeElement.querySelector('.target-text .countdown-number')).toBeNull();
   });
 
   it('leaves the shared logo to the application shell', () => {
@@ -346,41 +398,46 @@ describe('Race', () => {
 
   it('types the example on hover and restores it when hover ends', async () => {
     const option = component.difficultyOptions[2];
-    component.startDifficultyPreview(option);
+    await fixture.whenStable();
+    const card = fixture.nativeElement.querySelectorAll('.difficulty-card')[2];
+    const example = card.querySelector('.example-word');
+    const visible = example.querySelector('.typewriter-text');
+    card.dispatchEvent(new Event('pointerenter'));
 
     await new Promise(resolve => setTimeout(resolve, 120));
     fixture.detectChanges();
-    expect(component.typedDifficultyExample.length).toBeGreaterThan(0);
+    expect(visible.textContent.length).toBeGreaterThan(0);
+    expect(visible.textContent.length).toBeLessThan(option.example.length);
+    expect(card.querySelector('.difficulty-pip.bouncing')).not.toBeNull();
 
-    component.stopDifficultyPreview(option);
+    card.dispatchEvent(new Event('pointerleave'));
     fixture.detectChanges();
-    expect(component.activeDifficultyPreview).toBeNull();
-    expect(component.typedDifficultyExample).toBe('');
-    const example = fixture.nativeElement.querySelectorAll('.example-word')[2];
-    expect(example.textContent).toContain(option.example);
-    expect(component.activeDifficultyPreview).toBeNull();
+    expect(visible.textContent).toBe(option.example);
+    expect(example.classList.contains('typing')).toBe(false);
+    expect(card.querySelector('.difficulty-pip.bouncing')).toBeNull();
   });
 
-  it('does not start hover timers when reduced motion is requested', () => {
+  it('does not start hover timers when reduced motion is requested', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
     const reducedFixture = TestBed.createComponent(Race);
     reducedFixture.detectChanges();
-    const reducedComponent = reducedFixture.componentInstance;
+    await reducedFixture.whenStable();
     const setInterval = vi.spyOn(globalThis, 'setInterval');
 
-    reducedComponent.startDifficultyPreview(reducedComponent.difficultyOptions[0]);
+    reducedFixture.nativeElement.querySelector('.difficulty-card').dispatchEvent(new Event('pointerenter'));
     reducedFixture.detectChanges();
 
     expect(setInterval).not.toHaveBeenCalled();
-    expect(reducedComponent.activeDifficultyPreview).toBeNull();
+    expect(reducedFixture.nativeElement.querySelector('.typewriter-text').textContent).toBe('kedi');
     expect(reducedFixture.nativeElement.querySelector('.difficulty-pip.bouncing')).toBeNull();
     expect(reducedFixture.nativeElement.querySelector('.example-word.typing')).toBeNull();
     reducedFixture.destroy();
   });
 
-  it('clears the example typing interval when the race component is destroyed', () => {
+  it('clears the example typing interval when the race component is destroyed', async () => {
+    await fixture.whenStable();
     const clearInterval = vi.spyOn(globalThis, 'clearInterval');
-    component.startDifficultyPreview(component.difficultyOptions[0]);
+    fixture.nativeElement.querySelector('.difficulty-card').dispatchEvent(new Event('pointerenter'));
 
     fixture.destroy();
 
