@@ -84,7 +84,7 @@ try {
   await capture(firstPage, 'type-battle-profil-mobil.png');
   await firstPage.setViewportSize(desktop);
 
-  await firstPage.locator('.difficulty-card').nth(3).click();
+  await firstPage.locator('.difficulty-card').nth(1).click();
   await firstPage.getByLabel('Türkçe karakter modu').selectOption('simplified');
   await firstPage.getByRole('button', { name: 'Seçilen ayarlarla oda oluştur' }).click();
   const roomCodeElement = firstPage.locator('.room-code-box strong');
@@ -108,25 +108,34 @@ try {
     waitForOpponent(firstPage, 'Player Two'),
     waitForOpponent(secondPage, 'Player One')
   ]);
-  await Promise.all([
-    firstPage.locator('.target-text').waitFor({ state: 'visible' }),
-    secondPage.locator('.target-text').waitFor({ state: 'visible' })
-  ]);
   await assertBothAvatars(firstPage, secondPage, '.player-card');
   await capture(firstPage, 'type-battle-lobi.png');
-  await Promise.all([
-    assertTextFitsViewport(firstPage),
-    assertTextFitsViewport(secondPage)
-  ]);
+
+  for (const page of [firstPage, secondPage]) {
+    assert.equal(await page.locator('.target-text').count(), 0);
+    assert.match(await page.locator('.waiting-text').innerText(), /Her iki oyuncu hazır/);
+    assert.equal(await page.locator('.race-clock time').innerText(), '00:00.0');
+  }
+
+  await firstPage.getByRole('button', { name: 'Hazırım' }).click();
+  await secondPage.getByText('Rakip HAZIR', { exact: true }).waitFor();
+  await firstPage.getByRole('button', { name: 'Hazır ✓' }).waitFor();
+  assert.equal(await firstPage.locator('.countdown-number').count(), 0);
+  assert.equal(await secondPage.locator('.target-text').count(), 0);
+
+  await secondPage.getByRole('button', { name: 'Hazırım' }).click();
+  for (const digit of ['3', '2', '1']) {
+    await firstPage.locator(`.target-text-box .countdown-number:text-is(\"${digit}\")`).waitFor();
+    assert.equal(await firstPage.locator('.target-text').count(), 0);
+  }
+  await Promise.all([firstPage, secondPage].map(page =>
+    page.locator('.target-text').waitFor({ state: 'visible', timeout: 15000 })
+  ));
+  for (const page of [firstPage, secondPage]) {
+    await page.waitForFunction(() => document.querySelector('input[name="chatText"]')?.disabled);
+  }
+  await Promise.all([assertTextFitsViewport(firstPage), assertTextFitsViewport(secondPage)]);
   await firstPage.setViewportSize(desktop);
-  await Promise.all([
-    firstPage.getByRole('button', { name: 'Hazırım' }).click(),
-    secondPage.getByRole('button', { name: 'Hazırım' }).click()
-  ]);
-  await Promise.all([
-    firstPage.locator('.keyboard-hint').waitFor({ state: 'visible', timeout: 15_000 }),
-    secondPage.locator('.keyboard-hint').waitFor({ state: 'visible', timeout: 15_000 })
-  ]);
 
   await assertBothAvatars(firstPage, secondPage, '.player-card');
   await capture(firstPage, 'type-battle-yaris.png');
@@ -140,10 +149,7 @@ try {
   assert.equal(firstText, secondText, 'Both players must receive the same race text');
   assert.ok(firstText.length > 0, 'The race text must not be empty');
 
-  await Promise.all([
-    firstPage.keyboard.type(firstText, { delay: 30 }),
-    secondPage.keyboard.type(secondText, { delay: 30 })
-  ]);
+  await firstPage.keyboard.type(firstText, { delay: 70 });
   await Promise.all([
     firstPage.locator('.finish-screen').waitFor({ state: 'visible', timeout: 30_000 }),
     secondPage.locator('.finish-screen').waitFor({ state: 'visible', timeout: 30_000 })
@@ -179,7 +185,26 @@ try {
     1,
     'The race result must contain exactly one winner'
   );
-  console.log('Two-player race passed: profiles restored, avatars shown in lobby, race and results, and both WebSockets returned 101 on one origin.');
+  assert.match(await firstPage.locator('.winner-identity').innerText(), /Player One\s*—\s*\d{2}:\d{2}\.\d{2}/);
+  await secondPage.getByText('Bitirmedi', { exact: true }).waitFor();
+  await firstPage.getByRole('button', { name: 'Rövanş iste' }).click();
+  const request = firstPage.getByRole('dialog', { name: 'Rövanş iste' });
+  assert.equal((await request.locator('select option:checked').innerText()).trim(), '3 tur');
+  await request.getByRole('button', { name: 'İsteği gönder' }).click();
+  await firstPage.getByText('Bekleniyor…', { exact: true }).waitFor();
+
+  const offer = secondPage.getByRole('dialog', { name: 'Player One rövanş istiyor — 3 tur' });
+  await offer.waitFor();
+  assert.equal(await offer.evaluate(dialog => dialog.contains(document.activeElement)), true);
+  await offer.getByRole('button', { name: 'Kabul' }).click();
+
+  for (const page of [firstPage, secondPage]) {
+    await page.getByText(/Tur 1\/3 · Sen 0 – Rakip 0/).waitFor();
+    assert.equal(await page.locator('.target-text').count(), 0);
+    assert.equal(await page.locator('.race-clock time').innerText(), '00:00.0');
+  }
+
+  console.log('Two-player readiness, countdown, text reveal, result time and three-round rematch passed.');
 } finally {
   for (const session of sessions) {
     await session.detach();
@@ -252,7 +277,7 @@ async function monitorConnection(context, page, sessions) {
 
 async function waitForOpponent(page, name) {
   await page.waitForFunction(
-    expectedName => document.querySelector('.ready-controls')?.textContent?.includes(expectedName),
+    expectedName => document.querySelector('.player-card.opponent h3')?.textContent?.includes(expectedName),
     name,
     { timeout: 15_000 }
   );
