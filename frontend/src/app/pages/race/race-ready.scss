@@ -62,3 +62,40 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+
+.target-text-box { position: relative; }
+
+.encouragement {
+  position: absolute;
+  inset: -11px 0 auto;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.encouragement strong {
+  padding: 6px 14px;
+  border: 1px solid #ffd60a;
+  border-radius: 999px;
+  background: #281641;
+  color: #ffd60a;
+  animation: encouragement-rise 1400ms ease-out both;
+}
+
+@keyframes encouragement-rise {
+  0% { opacity: 0; transform: scale(.7); }
+  18% { opacity: 1; transform: scale(1.08); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-28px); }
+}
+
+@keyframes encouragement-fade {
+  0%, 100% { opacity: 0; }
+  18%, 70% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .encouragement strong { animation-name: encouragement-fade; }
+}

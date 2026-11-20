@@ -32,6 +32,7 @@ import { RaceService } from '../../services/race.service';
 import { TypingEngine } from '../../services/typing-engine';
 import { formatRaceDuration } from './race-duration';
 import { RaceKeyboard } from './race-keyboard';
+import { ENCOURAGEMENT_MESSAGES, shouldEncourage } from './race-encouragement';
 
 interface RoomCreatedMessage {
   roomCode: string;
@@ -87,6 +88,12 @@ export class Race implements OnInit, OnDestroy {
   private localStart: number | null = null;
   readonly formatDuration = formatRaceDuration;
   elapsedMs = 0;
+  encouragement = '';
+  private encouragementTimer?: ReturnType<typeof setTimeout>;
+  private readonly wpmSamples = new Map<number, number>();
+  private lastSampleSecond = -1;
+  private lastPopupMs = -Infinity;
+  private correctStreak = 0;
   private difficultyTypingInterval?: ReturnType<typeof setInterval>;
   private reconnecting = false;
   private targetTextValue = '';
@@ -423,9 +430,12 @@ export class Race implements OnInit, OnDestroy {
 
     this.keyboard?.flash(key, input.correct);
     if (input.correct) {
+      this.correctStreak++;
+      if (this.correctStreak >= 20) this.maybeEncourage(this.liveWpm, this.liveWpm);
       this.wrongKey = null;
       this.clearWrongKeyTimer();
     } else {
+      this.correctStreak = 0;
       this.wrongKey = key === ' ' ? '␣' : key;
       this.clearWrongKeyTimer();
       this.wrongKeyTimer = setTimeout(() => {
@@ -558,7 +568,15 @@ export class Race implements OnInit, OnDestroy {
     this.clearRaceClock();
     this.elapsedMs = 0;
     this.localStart = performance.now();
-    this.raceClock = setInterval(() => this.updateRaceClock(), 100);
+    this.correctStreak = 0;
+    this.lastPopupMs = -Infinity;
+    this.lastSampleSecond = 0;
+    this.wpmSamples.clear();
+    this.wpmSamples.set(0, 0);
+    this.raceClock = setInterval(() => {
+      this.updateRaceClock();
+      this.sampleEncouragement();
+    }, 100);
   }
 
   private updateRaceClock(): void {
@@ -572,6 +590,37 @@ export class Race implements OnInit, OnDestroy {
     clearInterval(this.raceClock);
     this.raceClock = undefined;
     this.localStart = null;
+    clearTimeout(this.encouragementTimer);
+    this.encouragement = '';
+  }
+
+  private sampleEncouragement(): void {
+    const second = Math.floor(this.elapsedMs / 1000);
+    if (second === this.lastSampleSecond) return;
+    const previous = this.wpmSamples.get(this.lastSampleSecond) ?? 0;
+    const wpm = this.liveWpm;
+    this.maybeEncourage(wpm, previous, this.wpmSamples.get(second - 5));
+    this.wpmSamples.set(second, wpm);
+    this.lastSampleSecond = second;
+    for (const age of this.wpmSamples.keys()) {
+      if (age < second - 5) this.wpmSamples.delete(age);
+    }
+  }
+
+  private maybeEncourage(wpm: number, previousWpm: number, wpmFiveSecondsAgo?: number): void {
+    if (!shouldEncourage({
+      elapsedMs: this.elapsedMs, lastPopupMs: this.lastPopupMs, wpm, previousWpm,
+      wpmFiveSecondsAgo, correctStreak: this.correctStreak
+    })) return;
+
+    this.lastPopupMs = this.elapsedMs;
+    this.correctStreak = 0;
+    this.encouragement = ENCOURAGEMENT_MESSAGES[Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)];
+    this.encouragementTimer = setTimeout(() => {
+      this.encouragement = '';
+      this.changeDetector.markForCheck();
+    }, 1400);
+    this.changeDetector.markForCheck();
   }
 
   private clearCountdown(): void {

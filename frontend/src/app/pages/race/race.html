@@ -148,6 +148,9 @@
   </p>
   <div class="race-content" *ngIf="inRoom && !raceFinished">
     <div class="target-text-box">
+      <div class="encouragement" aria-live="polite" aria-atomic="true">
+        <strong *ngIf="encouragement">{{ encouragement }}</strong>
+      </div>
       <h2>Yazılacak metin</h2>
       @if (countdown) {
         <div class="countdown-overlay" role="status" aria-live="polite">
