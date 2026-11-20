@@ -23,13 +23,22 @@ public class TypingHub : Hub
         _timeProvider = timeProvider;
     }
 
-    public async Task<string> CreateRoom(
+    public Task<string> CreateRoom(
         string? difficulty,
         int wordCount,
         string? characterMode,
-        string? playerName)
+        string? playerName) =>
+        CreateRoomWithProfile(difficulty, wordCount, characterMode, playerName, null);
+
+    public async Task<string> CreateRoomWithProfile(
+        string? difficulty,
+        int wordCount,
+        string? characterMode,
+        string? playerName,
+        string? avatarId)
     {
         var normalizedPlayerName = NormalizePlayerName(playerName);
+        var normalizedAvatarId = NormalizeAvatarId(avatarId);
 
         RoomSettings settings;
         try
@@ -63,7 +72,8 @@ public class TypingHub : Hub
             };
             room.Players.Add(Context.ConnectionId, new PlayerState
             {
-                Name = normalizedPlayerName
+                Name = normalizedPlayerName,
+                AvatarId = normalizedAvatarId
             });
         }
         while (!_rooms.TryAdd(room));
@@ -76,17 +86,22 @@ public class TypingHub : Hub
                 roomCode,
                 text = room.Text,
                 playerName = normalizedPlayerName,
+                avatarId = normalizedAvatarId,
                 settings = BuildRoomSettings(room.Settings)
             });
 
         return roomCode;
     }
 
-    public async Task JoinRoom(string? roomCode, string playerName)
+    public Task JoinRoom(string? roomCode, string? playerName) =>
+        JoinRoomWithProfile(roomCode, playerName, null);
+
+    public async Task JoinRoomWithProfile(string? roomCode, string? playerName, string? avatarId)
     {
         var room = GetRoom(roomCode);
         var connectionId = Context.ConnectionId;
         var normalizedPlayerName = NormalizePlayerName(playerName);
+        var normalizedAvatarId = NormalizeAvatarId(avatarId);
         RacePlayerProgress[] progress;
 
         lock (room.Lock)
@@ -102,7 +117,8 @@ public class TypingHub : Hub
 
             room.Players.Add(connectionId, new PlayerState
             {
-                Name = normalizedPlayerName
+                Name = normalizedPlayerName,
+                AvatarId = normalizedAvatarId
             });
             progress = BuildProgress(room);
         }
@@ -249,6 +265,7 @@ public class TypingHub : Hub
             {
                 id = entry.Key,
                 name = entry.Value.Name,
+                avatarId = entry.Value.AvatarId,
                 ready = entry.Value.Ready
             }).ToArray();
             phase = room.Phase.ToString().ToLowerInvariant();
@@ -441,16 +458,23 @@ public class TypingHub : Hub
             throw new HubException("Oyuncu adı gerekli.");
 
         var characters = normalizedPlayerName.EnumerateRunes().ToArray();
-        if (characters.Length > 15 ||
+        if (characters.Length is < 3 or > 16 ||
             characters.Any(character =>
                 !Rune.IsLetter(character) && character.Value != ' '))
         {
             throw new HubException(
-                "Oyuncu adı en fazla 15 karakter olabilir ve yalnızca harf ile boşluk içerebilir.");
+                "Oyuncu adı 3–16 karakter olmalı ve yalnızca harf ile boşluk içerebilir.");
         }
 
         return normalizedPlayerName;
     }
+
+    private static string NormalizeAvatarId(string? avatarId) =>
+        avatarId is "avatar-01" or "avatar-02" or "avatar-03" or "avatar-04"
+            or "avatar-05" or "avatar-06" or "avatar-07" or "avatar-08"
+            or "avatar-09" or "avatar-10" or "avatar-11" or "avatar-12"
+            ? avatarId
+            : PlayerState.DefaultAvatarId;
 
     private static RacePlayerProgress[] BuildProgress(
         RoomState room,
@@ -463,6 +487,7 @@ public class TypingHub : Hub
             return new RacePlayerProgress(
                 entry.Key,
                 player.Name,
+                player.AvatarId,
                 player.Position,
                 player.Errors,
                 player.Keystrokes,
@@ -495,6 +520,7 @@ public class TypingHub : Hub
             return new RacePlayerResult(
                 entry.Key,
                 player.Name,
+                player.AvatarId,
                 player.Position,
                 player.Errors,
                 player.Keystrokes,

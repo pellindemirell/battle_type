@@ -45,18 +45,30 @@ describe('RaceService', () => {
     const handler = vi.fn();
 
     service.on('RoomCreated', handler);
-    await service.createRoom('easy', 30, 'full', 'Player');
+    await service.createRoom('easy', 30, 'full', {
+      nickname: 'Player',
+      avatarId: 'avatar-04'
+    });
 
     expect(connection.on).toHaveBeenCalledWith('RoomCreated', handler);
     expect(connection.start).toHaveBeenCalledOnce();
     expect(connection.invoke).toHaveBeenCalledWith(
-      'CreateRoom',
+      'CreateRoomWithProfile',
       'easy',
       30,
       'full',
-      'Player'
+      'Player',
+      'avatar-04'
     );
     expect(handlers.get('RoomCreated')).toBe(handler);
+  });
+
+  it('joins a room with the nickname and avatar ID', async () => {
+    await service.joinRoom('ABCDE', { nickname: 'Player', avatarId: 'avatar-10' });
+
+    expect(connection.invoke).toHaveBeenCalledWith(
+      'JoinRoomWithProfile', 'ABCDE', 'Player', 'avatar-10'
+    );
   });
 
   it('shares an in-flight connection start across concurrent calls', async () => {

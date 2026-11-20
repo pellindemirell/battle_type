@@ -1,0 +1,37 @@
+<section class="profile-panel" aria-labelledby="profile-title">
+  <h2 id="profile-title">Profilini Oluştur</h2>
+  <label for="player-nickname">Oyuncu adı</label>
+  <input
+    id="player-nickname"
+    type="text"
+    placeholder="Oyuncu adın"
+    autocomplete="nickname"
+    aria-describedby="nickname-hint"
+    [value]="profile().nickname"
+    (input)="updateNickname($event)"
+    required
+  />
+  <p id="nickname-hint">3–16 karakter · Harf ve boşluk</p>
+
+  <fieldset>
+    <legend>Avatarını Seç</legend>
+    <div class="avatar-grid">
+      @for (avatar of avatars; track avatar.id) {
+        <label class="avatar-option">
+          <input
+            type="radio"
+            name="player-avatar"
+            [value]="avatar.id"
+            [attr.aria-label]="avatar.name"
+            [checked]="profile().avatarId === avatar.id"
+            (change)="selectAvatar(avatar.id)"
+          />
+          <span class="avatar-frame">
+            <app-player-avatar [avatarId]="avatar.id" [decorative]="true" />
+            <span class="avatar-check" aria-hidden="true">✓</span>
+          </span>
+        </label>
+      }
+    </div>
+  </fieldset>
+</section>

@@ -1,16 +1,6 @@
 <div class="race-page">
   <div class="setup" *ngIf="!targetText">
-    <div class="setup-group">
-      <input
-        type="text"
-        placeholder="Oyuncu adın"
-        aria-label="Oyuncu adı"
-        [ngModel]="playerName"
-        (ngModelChange)="onPlayerNameChange($event)"
-        maxlength="15"
-        autocomplete="nickname"
-      />
-    </div>
+    <app-player-profile [profile]="profile" (profileChange)="updateProfile($event)" />
 
     <section class="room-options" aria-label="Yarış ayarları">
       <h2>Yarış ayarları</h2>
@@ -116,7 +106,7 @@
     </div>
   </div>
 
-  <p class="status-message" *ngIf="message">{{ message }}</p>
+  <p class="status-message" role="status" *ngIf="message">{{ message }}</p>
 
   <div class="room-settings" *ngIf="roomSettings">
     <span class="difficulty-badge">
@@ -189,7 +179,10 @@
 
     <div class="players">
       <div class="player-card">
-        <h3>{{ playerName || 'Sen' }}</h3>
+        <h3 class="player-identity">
+          <app-player-avatar [avatarId]="roomAvatarId" />
+          {{ profile.nickname || 'Sen' }}
+        </h3>
         <div class="progress-bar-container">
           <div class="progress-bar" [style.width.%]="myProgress"></div>
         </div>
@@ -198,7 +191,10 @@
       </div>
 
       <div class="player-card opponent">
-        <h3>{{ opponentName || 'Rakip bekleniyor…' }}</h3>
+        <h3 class="player-identity">
+          <app-player-avatar *ngIf="opponentName" [avatarId]="opponentAvatarId" />
+          {{ opponentName || 'Rakip bekleniyor…' }}
+        </h3>
         <div class="progress-bar-container">
           <div class="progress-bar" [style.width.%]="opponentProgress"></div>
         </div>
@@ -210,7 +206,10 @@
   <div class="finish-screen" *ngIf="raceFinished && result">
     <div class="trophy">🏆</div>
     <h1>{{ isWinner ? 'Kazandın!' : 'Yarış Tamamlandı!' }}</h1>
-    <h2>Kazanan: {{ winner }}</h2>
+    <h2 class="player-identity winner-identity">
+      <app-player-avatar *ngIf="winningPlayer as winner" [avatarId]="winner.avatarId" />
+      Kazanan: {{ winningPlayer?.name ?? 'Bilinmeyen oyuncu' }}
+    </h2>
 
     <div class="results-table-wrapper">
       <table class="results-table">
@@ -229,8 +228,13 @@
             [class.winner-row]="player.id === result.winnerId"
           >
             <td>
-              {{ player.name }}
-              <strong *ngIf="player.id === result.winnerId">Kazanan</strong>
+              <div class="player-identity">
+                <app-player-avatar [avatarId]="player.avatarId" />
+                <span>
+                  {{ player.name }}
+                  <strong *ngIf="player.id === result.winnerId">Kazanan</strong>
+                </span>
+              </div>
             </td>
             <td>{{ player.wpm | number:'1.0-0' }}</td>
             <td>%{{ player.accuracy | number:'1.0-0' }}</td>

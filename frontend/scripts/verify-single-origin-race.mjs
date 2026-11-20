@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 const baseUrl = process.env.SINGLE_ORIGIN_BASE_URL ?? 'http://127.0.0.1:5027';
 const origin = new URL(baseUrl);
+const screenshotDirectory = process.env.TYPEBATTLE_SCREENSHOTS;
+const desktop = { width: 1440, height: 1000 };
+const mobile = { width: 320, height: 900 };
 const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
   ?? [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -44,8 +49,8 @@ const browser = await chromium.launch({
 const sessions = [];
 
 try {
-  const firstContext = await browser.newContext();
-  const secondContext = await browser.newContext();
+  const firstContext = await browser.newContext({ viewport: desktop });
+  const secondContext = await browser.newContext({ viewport: desktop });
   const firstPage = await firstContext.newPage();
   const secondPage = await secondContext.newPage();
   const firstNetwork = await monitorConnection(firstContext, firstPage, sessions);
@@ -57,6 +62,28 @@ try {
   ]);
 
   await firstPage.getByPlaceholder('Oyuncu adın').fill('Player One');
+  const choices = firstPage.locator('input[name="player-avatar"]');
+  assert.equal(await choices.count(), 12, 'All twelve avatar choices must appear');
+  await firstPage.locator('.avatar-option').filter({
+    has: choices.filter({ has: undefined }).and(firstPage.locator('[value="avatar-08"]'))
+  }).click();
+  await firstPage.reload({ waitUntil: 'domcontentloaded' });
+  await firstPage.locator('input[name="player-avatar"]:checked[value="avatar-08"]').waitFor({
+    state: 'attached'
+  });
+  assert.equal(await firstPage.getByPlaceholder('Oyuncu adın').inputValue(), 'Player One');
+  assert.equal(await firstPage.locator('input[name="player-avatar"]:checked').count(), 1);
+  await assertPlayerAvatar(firstPage, '.avatar-option:has(input:checked)', '', 'avatar-08');
+  await capture(firstPage, 'type-battle-profil.png');
+
+  await firstPage.setViewportSize(mobile);
+  const mobileAvatarBoxes = await firstPage.locator('.avatar-option').evaluateAll((options) =>
+    options.map((option) => option.getBoundingClientRect().x)
+  );
+  assert.equal(new Set(mobileAvatarBoxes).size, 4, 'Mobile avatar grid must have four columns');
+  await capture(firstPage, 'type-battle-profil-mobil.png');
+  await firstPage.setViewportSize(desktop);
+
   await firstPage.locator('.difficulty-card').nth(3).click();
   await firstPage.getByLabel('Türkçe karakter modu').selectOption('simplified');
   await firstPage.getByRole('button', { name: 'Seçilen ayarlarla oda oluştur' }).click();
@@ -67,7 +94,13 @@ try {
   assert.equal(await firstPage.locator('.target-text').count(), 0);
   await firstPage.locator('.waiting-text').waitFor({ state: 'visible' });
 
+  await assertPlayerAvatar(firstPage, '.player-card', 'Player One', 'avatar-08');
   await secondPage.getByPlaceholder('Oyuncu adın').fill('Player Two');
+  await secondPage.locator('input[name="player-avatar"]:checked').focus();
+  await secondPage.keyboard.press('ArrowRight');
+  assert.equal(
+    await secondPage.locator('input[name="player-avatar"]:checked').inputValue(), 'avatar-02'
+  );
   await secondPage.getByPlaceholder('Oda kodu (5 hane)').fill(roomCode);
   await secondPage.getByRole('button', { name: 'Yarışmaya Katıl' }).click();
 
@@ -79,10 +112,13 @@ try {
     firstPage.locator('.target-text').waitFor({ state: 'visible' }),
     secondPage.locator('.target-text').waitFor({ state: 'visible' })
   ]);
+  await assertBothAvatars(firstPage, secondPage, '.player-card');
+  await capture(firstPage, 'type-battle-lobi.png');
   await Promise.all([
     assertTextFitsViewport(firstPage),
     assertTextFitsViewport(secondPage)
   ]);
+  await firstPage.setViewportSize(desktop);
   await Promise.all([
     firstPage.getByRole('button', { name: 'Hazırım' }).click(),
     secondPage.getByRole('button', { name: 'Hazırım' }).click()
@@ -91,6 +127,9 @@ try {
     firstPage.locator('.keyboard-hint').waitFor({ state: 'visible', timeout: 15_000 }),
     secondPage.locator('.keyboard-hint').waitFor({ state: 'visible', timeout: 15_000 })
   ]);
+
+  await assertBothAvatars(firstPage, secondPage, '.player-card');
+  await capture(firstPage, 'type-battle-yaris.png');
 
   const firstText = normalizeTarget(
     (await firstPage.locator('.target-text').textContent()) ?? ''
@@ -109,6 +148,15 @@ try {
     firstPage.locator('.finish-screen').waitFor({ state: 'visible', timeout: 30_000 }),
     secondPage.locator('.finish-screen').waitFor({ state: 'visible', timeout: 30_000 })
   ]);
+
+  await assertBothAvatars(firstPage, secondPage, '.results-table tbody tr');
+  for (const page of [firstPage, secondPage]) {
+    const winnerAvatar = await page.locator('.winner-row img').getAttribute('src');
+    const hero = page.locator('.winner-identity img');
+    assert.equal(await hero.getAttribute('src'), winnerAvatar);
+    assert.ok(await hero.evaluate((img) => img.getBoundingClientRect().width > 44));
+  }
+  await capture(firstPage, 'type-battle-sonuclar.png');
 
   for (const [label, network] of [
     ['first player', firstNetwork],
@@ -131,12 +179,44 @@ try {
     1,
     'The race result must contain exactly one winner'
   );
-  console.log('Two-player race passed over HTTP on one origin; both negotiate requests were same-origin and both WebSockets returned 101.');
+  console.log('Two-player race passed: profiles restored, avatars shown in lobby, race and results, and both WebSockets returned 101 on one origin.');
 } finally {
   for (const session of sessions) {
     await session.detach();
   }
   await browser.close();
+}
+
+async function assertBothAvatars(first, second, container) {
+  await Promise.all(
+    [first, second].flatMap((page) => [
+      assertPlayerAvatar(page, container, 'Player One', 'avatar-08'),
+      assertPlayerAvatar(page, container, 'Player Two', 'avatar-02')
+    ])
+  );
+}
+
+async function assertPlayerAvatar(page, container, nickname, avatarId) {
+  await page.waitForFunction(({ container, nickname, avatarId }) =>
+    Array.from(document.querySelectorAll(container)).some((element) => {
+      const image = element.querySelector('img');
+      return element.textContent.includes(nickname) &&
+        image?.getAttribute('src') === `/assets/avatars/${avatarId}.png` &&
+        image.complete && image.naturalWidth === 256;
+    }),
+    { container, nickname, avatarId },
+    { timeout: 15_000 }
+  );
+}
+
+async function capture(page, name) {
+  if (!screenshotDirectory) return;
+  await mkdir(screenshotDirectory, { recursive: true });
+  await page.screenshot({
+    path: join(screenshotDirectory, name),
+    fullPage: true,
+    animations: 'disabled'
+  });
 }
 
 async function monitorConnection(context, page, sessions) {

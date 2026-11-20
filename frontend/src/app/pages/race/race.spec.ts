@@ -1,6 +1,7 @@
 import { afterEach } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Race } from './race';
+import { PLAYER_PROFILE_STORAGE_KEY } from '../../models/player-profile';
 import { RaceService } from '../../services/race.service';
 
 describe('Race', () => {
@@ -25,6 +26,7 @@ describe('Race', () => {
   });
 
   beforeEach(async () => {
+    localStorage.removeItem(PLAYER_PROFILE_STORAGE_KEY);
     raceService = {
       connectionId: 'player-1',
       on: vi.fn(() => () => {}),
@@ -97,7 +99,7 @@ describe('Race', () => {
   });
 
   it('creates a room with the selected difficulty, length, and character mode', async () => {
-    component.playerName = 'Player';
+    component.updateProfile({ nickname: 'Player', avatarId: 'avatar-07' });
     component.wordCount = 45;
     component.characterMode = 'simplified';
     const hardCard = fixture.nativeElement.querySelectorAll('[role="radio"]')[2] as HTMLButtonElement;
@@ -110,11 +112,11 @@ describe('Race', () => {
       'hard',
       45,
       'simplified',
-      'Player'
+      { nickname: 'Player', avatarId: 'avatar-07' }
     );
   });
 
-  it('filters the player name to letters and spaces and limits it to 15 characters', () => {
+  it('filters the player name to letters and spaces and limits it to 16 characters', () => {
     const input = fixture.nativeElement.querySelector(
       'input[placeholder="Oyuncu adın"]'
     ) as HTMLInputElement;
@@ -123,30 +125,95 @@ describe('Race', () => {
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(component.playerName).toBe('Çağrı  Yılmaz');
-    expect(input.maxLength).toBe(15);
+    expect(component.profile.nickname).toBe('Çağrı  Yılmaz');
+    expect(input.value).toBe('Çağrı  Yılmaz');
 
-    input.value = 'abcdefghijklmnop';
+    input.value = 'abcdefghijklmnopq';
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(component.playerName).toBe('abcdefghijklmno');
+    expect(component.profile.nickname).toBe('abcdefghijklmnop');
+    expect(input.value).toBe('abcdefghijklmnop');
   });
 
   it('sanitizes the player name before creating or joining a room', async () => {
-    component.playerName = 'Player123!';
+    component.updateProfile({ nickname: ' Player123! ', avatarId: 'avatar-08' });
     await component.createRoom();
     component.roomCode = 'ABCDE';
-    component.playerName = 'Çağrı 42!';
+    component.updateProfile({ nickname: 'Çağrı 42!', avatarId: 'avatar-09' });
     await component.joinRoom();
 
     expect(raceService.createRoom).toHaveBeenCalledWith(
       'easy',
       30,
       'full',
-      'Player'
+      { nickname: 'Player', avatarId: 'avatar-08' }
     );
-    expect(raceService.joinRoom).toHaveBeenCalledWith('ABCDE', 'Çağrı');
+    expect(raceService.joinRoom).toHaveBeenCalledWith(
+      'ABCDE', { nickname: 'Çağrı', avatarId: 'avatar-09' }
+    );
+  });
+
+  it('shows all twelve avatars and persists exactly one selection', () => {
+    const radios = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
+        'input[name="player-avatar"]'
+      )
+    );
+    expect(radios).toHaveLength(12);
+    expect(radios.filter((radio) => radio.checked).map((radio) => radio.value))
+      .toEqual(['avatar-01']);
+
+    radios[5].click();
+    fixture.detectChanges();
+
+    expect(radios.filter((radio) => radio.checked).map((radio) => radio.value))
+      .toEqual(['avatar-06']);
+    expect(JSON.parse(localStorage.getItem(PLAYER_PROFILE_STORAGE_KEY)!))
+      .toEqual({ nickname: '', avatarId: 'avatar-06' });
+  });
+
+  it.each([
+    ['avatar-12', 'avatar-12'],
+    ['removed-avatar', 'avatar-01']
+  ])('loads a stored profile with avatar %s as %s', (stored, expected) => {
+    localStorage.setItem(PLAYER_PROFILE_STORAGE_KEY, JSON.stringify({
+      nickname: ' Çağrı ',
+      avatarId: stored
+    }));
+    const reloaded = TestBed.createComponent(Race);
+    reloaded.detectChanges();
+    const root = reloaded.nativeElement as HTMLElement;
+
+    expect(root.querySelector<HTMLInputElement>('#player-nickname')?.value).toBe('Çağrı');
+    expect(root.querySelector<HTMLInputElement>('input[name="player-avatar"]:checked')?.value)
+      .toBe(expected);
+    reloaded.destroy();
+  });
+
+  it('renders a fallback when the selected avatar image fails to load', () => {
+    const avatar = (fixture.nativeElement as HTMLElement).querySelectorAll('app-player-avatar')[5];
+
+    avatar.querySelector('img')?.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(avatar.querySelector('img')?.getAttribute('src')).toBe('/assets/avatars/avatar-01.png');
+
+    avatar.querySelector('img')?.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(avatar.querySelector('img')).toBeNull();
+    expect(avatar.querySelector('.fallback')).not.toBeNull();
+  });
+
+  it('blocks creating and joining a room with a short nickname', async () => {
+    component.updateProfile({ nickname: ' Ab ', avatarId: 'avatar-01' });
+    component.roomCode = 'ABCDE';
+
+    await component.createRoom();
+    await component.joinRoom();
+
+    expect(raceService.createRoom).not.toHaveBeenCalled();
+    expect(raceService.joinRoom).not.toHaveBeenCalled();
+    expect(component.message).toContain('3–16');
   });
 
   it('shows the server-provided settings in the room', () => {

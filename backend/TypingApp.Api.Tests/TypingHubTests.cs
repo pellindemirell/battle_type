@@ -27,7 +27,8 @@ public sealed class TypingHubTests
     [Theory]
     [InlineData("Player1")]
     [InlineData("Player!")]
-    [InlineData("abcdefghijklmnop")]
+    [InlineData("ab")]
+    [InlineData("abcdefghijklmnopq")]
     public async Task CreateRoom_RejectsInvalidPlayerNames(string playerName)
     {
         var fixture = CreateRunningRoom("a");
@@ -35,14 +36,15 @@ public sealed class TypingHubTests
         var error = await Assert.ThrowsAsync<HubException>(() =>
             fixture.Hub.CreateRoom("easy", 30, "full", playerName));
 
-        Assert.Contains("15", error.Message);
+        Assert.Contains("3–16", error.Message);
         Assert.Empty(fixture.Clients.Messages);
     }
 
     [Theory]
     [InlineData("Player1")]
     [InlineData("Player!")]
-    [InlineData("abcdefghijklmnop")]
+    [InlineData("ab")]
+    [InlineData("abcdefghijklmnopq")]
     public async Task JoinRoom_RejectsInvalidPlayerNames(string playerName)
     {
         var fixture = CreateRunningRoom("a");
@@ -50,7 +52,7 @@ public sealed class TypingHubTests
         var error = await Assert.ThrowsAsync<HubException>(() =>
             fixture.Hub.JoinRoom(fixture.Room.Code, playerName));
 
-        Assert.Contains("15", error.Message);
+        Assert.Contains("3–16", error.Message);
         Assert.Single(fixture.Room.Players);
     }
 
@@ -64,6 +66,55 @@ public sealed class TypingHubTests
         await joiningHub.JoinRoom(fixture.Room.Code, " Çağrı Test ");
 
         Assert.Equal("Çağrı Test", fixture.Room.Players["player-2"].Name);
+    }
+
+    [Theory]
+    [InlineData("avatar-12", "avatar-12")]
+    [InlineData("avatar-13", "avatar-01")]
+    [InlineData(null, "avatar-01")]
+    public async Task CreateRoomWithProfile_StoresAndReportsTheValidatedAvatar(
+        string? requestedAvatar, string expectedAvatar)
+    {
+        var fixture = CreateRunningRoom("a");
+        var code = await fixture.Hub.CreateRoomWithProfile(
+            "easy", 30, "full", " abcdefghijklmnop ", requestedAvatar);
+
+        Assert.True(fixture.Store.TryGet(code, out var room));
+        Assert.NotNull(room);
+        var creator = room.Players["player-1"];
+        Assert.Equal("abcdefghijklmnop", creator.Name);
+        Assert.Equal(expectedAvatar, creator.AvatarId);
+        var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "RoomCreated");
+        Assert.Equal(expectedAvatar, ReadProperty<string>(message.Arguments[0], "avatarId"));
+    }
+
+    [Theory]
+    [InlineData("avatar-01", "avatar-01")]
+    [InlineData("invalid", "avatar-01")]
+    [InlineData("avatar-08", "avatar-08")]
+    public async Task JoinRoomWithProfile_StoresAndReportsSharedOrDistinctAvatars(
+        string requestedAvatar, string expectedAvatar)
+    {
+        var fixture = CreateRunningRoom("a");
+        fixture.Room.Phase = RacePhase.Waiting;
+        var joiningHub = CreateHubForPlayer(fixture, "player-2");
+        joiningHub.Clients = fixture.Hub.Clients;
+
+        await joiningHub.JoinRoomWithProfile(fixture.Room.Code, "Other", requestedAvatar);
+
+        Assert.Equal("avatar-01", fixture.Room.Players["player-1"].AvatarId);
+        Assert.Equal(expectedAvatar, fixture.Room.Players["player-2"].AvatarId);
+        var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "PlayerJoined");
+        var players = ReadProperty<RacePlayerProgress[]>(message.Arguments[0], "players");
+        Assert.Equal(2, players.Length);
+        Assert.Equal("avatar-01", players.Single(player => player.Id == "player-1").AvatarId);
+        Assert.Equal(expectedAvatar, players.Single(player => player.Id == "player-2").AvatarId);
+    }
+
+    private static T ReadProperty<T>(object? payload, string name)
+    {
+        Assert.NotNull(payload);
+        return Assert.IsType<T>(payload.GetType().GetProperty(name)?.GetValue(payload));
     }
 
     [Fact]
@@ -139,7 +190,7 @@ public sealed class TypingHubTests
     public async Task OnDisconnectedAsync_FinishesRunningRaceAndAwardsRemainingPlayer()
     {
         var fixture = CreateRunningRoom("ab");
-        var remainingPlayer = new PlayerState { Name = "Remaining" };
+        var remainingPlayer = new PlayerState { Name = "Remaining", AvatarId = "avatar-06" };
         fixture.Room.Players.Add("player-2", remainingPlayer);
 
         await fixture.Hub.OnDisconnectedAsync(null);
@@ -160,6 +211,7 @@ public sealed class TypingHubTests
             message => message.Method == "RaceFinished");
         var result = Assert.IsType<RaceResult>(finishedEvent.Arguments[0]);
         Assert.Equal("player-2", result.WinnerId);
+        Assert.Equal("avatar-06", result.Players.Single(player => player.Id == result.WinnerId).AvatarId);
         Assert.Equal(new[] { "player-2", "player-1" }, result.Players.Select(player => player.Id));
         Assert.False(result.Players.Single(player => player.Id == "player-1").Finished);
         Assert.True(result.Players.Single(player => player.Id == "player-2").Finished);
@@ -248,8 +300,14 @@ public sealed class TypingHubTests
     public sealed record SentMessage(string Method, object?[] Arguments);
 
     private sealed class RecordingClientProxy(
-        List<SentMessage> messages) : IClientProxy
+        List<SentMessage> messages) : ISingleClientProxy
     {
+        public Task<T> InvokeCoreAsync<T>(
+            string method,
+            object?[] args,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task SendCoreAsync(
             string method,
             object?[] args,

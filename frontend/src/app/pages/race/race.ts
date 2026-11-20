@@ -5,11 +5,21 @@ import {
   HostListener,
   OnDestroy,
   OnInit,
+  PLATFORM_ID,
   ViewChild,
   inject
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { PlayerAvatar } from '../../components/player-avatar/player-avatar';
+import { PlayerProfilePicker } from '../../components/player-profile/player-profile';
+import {
+  avatarForId,
+  DEFAULT_AVATAR,
+  filterNickname,
+  PlayerProfile,
+  PLAYER_PROFILE_STORAGE_KEY
+} from '../../models/player-profile';
 import {
   RaceCharacterMode,
   RaceDifficulty,
@@ -24,6 +34,7 @@ import { TypingEngine } from '../../services/typing-engine';
 interface RoomCreatedMessage {
   roomCode: string;
   text: string;
+  avatarId: string;
   settings: RaceRoomSettings;
 }
 
@@ -53,14 +64,12 @@ interface TargetTextWord {
   characters: TargetTextCharacter[];
 }
 
-const PLAYER_NAME_CHARACTER = /^(?:\p{L}| )$/u;
-
 @Component({
   selector: 'app-race',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PlayerAvatar, PlayerProfilePicker],
   templateUrl: './race.html',
-  styleUrl: './race.scss'
+  styleUrls: ['./race.scss', './race-avatars.scss']
 })
 export class Race implements OnInit, OnDestroy {
   private raceService = inject(RaceService);
@@ -76,7 +85,9 @@ export class Race implements OnInit, OnDestroy {
   private targetTextValue = '';
   private targetWordsValue: TargetTextWord[] = [];
 
-  playerName = '';
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  profile = this.loadProfile();
+  roomAvatarId = DEFAULT_AVATAR.id;
   roomCode = '';
   difficulty: RaceDifficulty = 'easy';
   wordCount = 30;
@@ -130,6 +141,7 @@ export class Race implements OnInit, OnDestroy {
   wrongKey: string | null = null;
   capsLockOn = false;
   opponentName = '';
+  opponentAvatarId: string | null = null;
   myProgress = 0;
   opponentProgress = 0;
   countdown = 0;
@@ -138,10 +150,13 @@ export class Race implements OnInit, OnDestroy {
   rematchRequested = false;
   raceStarted = false;
   raceFinished = false;
-  winner = '';
   isWinner = false;
   result: RaceResult | null = null;
   message = '';
+
+  get winningPlayer() {
+    return this.result?.players.find((player) => player.id === this.result?.winnerId);
+  }
 
   get targetText(): string {
     return this.targetTextValue;
@@ -180,6 +195,7 @@ export class Race implements OnInit, OnDestroy {
     this.unsubscribeHandlers.push(
       this.raceService.on('RoomCreated', (data: RoomCreatedMessage) => {
         this.roomCode = data.roomCode;
+        this.roomAvatarId = avatarForId(data.avatarId).id;
         this.targetText = data.text;
         this.roomSettings = data.settings;
         this.message = 'Rakibin bekleniyor.';
@@ -199,7 +215,6 @@ export class Race implements OnInit, OnDestroy {
         this.raceFinished = false;
         this.raceStarted = false;
         this.result = null;
-        this.winner = '';
         this.isWinner = false;
         this.typingEngine.reset(this.targetText);
         this.myProgress = 0;
@@ -214,7 +229,9 @@ export class Race implements OnInit, OnDestroy {
         const opponent = status.players.find((player) => player.id !== connectionId);
         this.isReady = me?.ready ?? false;
         this.opponentReady = opponent?.ready ?? false;
-        this.opponentName = opponent?.name ?? this.opponentName;
+        this.opponentName = opponent?.name ?? '';
+        this.opponentAvatarId = opponent?.avatarId ?? null;
+        this.roomAvatarId = avatarForId(me?.avatarId ?? this.roomAvatarId).id;
 
         if (status.phase === 'countdown') {
           this.raceFinished = false;
@@ -246,15 +263,17 @@ export class Race implements OnInit, OnDestroy {
         this.isReady = false;
         this.opponentReady = false;
         this.rematchRequested = false;
-        this.winner =
-          result.players.find((player) => player.id === result.winnerId)?.name
-          ?? 'Bilinmeyen oyuncu';
         this.isWinner = result.winnerId === this.raceService.connectionId;
         this.changeDetector.markForCheck();
       }),
       this.raceService.on('PlayerDisconnected', (data: string) => {
         this.message = data;
         this.opponentReady = false;
+        if (!this.raceStarted && !this.raceFinished) {
+          this.opponentName = '';
+          this.opponentAvatarId = null;
+          this.opponentProgress = 0;
+        }
         this.changeDetector.markForCheck();
       }),
       this.raceService.onreconnecting(() => {
@@ -275,18 +294,15 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async createRoom(): Promise<void> {
-    this.playerName = this.filterPlayerName(this.playerName).trim();
-    if (!this.playerName.trim()) {
-      this.message = 'Oyuncu adını gir.';
-      return;
-    }
+    const profile = this.profileForRoom();
+    if (!profile) return;
 
     try {
       await this.raceService.createRoom(
         this.difficulty,
         this.wordCount,
         this.characterMode,
-        this.playerName
+        profile
       );
     } catch (err: any) {
       this.message = 'Oda oluşturulamadı: ' + (err?.message ?? err);
@@ -295,22 +311,33 @@ export class Race implements OnInit, OnDestroy {
   }
 
   async joinRoom(): Promise<void> {
-    this.playerName = this.filterPlayerName(this.playerName).trim();
-    if (!this.playerName.trim() || !this.roomCode.trim()) {
-      this.message = 'Oyuncu adı ve oda kodu gerekli.';
+    const profile = this.profileForRoom();
+    if (!profile) return;
+    if (!this.roomCode.trim()) {
+      this.message = 'Oda kodu gerekli.';
       return;
     }
 
     try {
-      await this.raceService.joinRoom(this.roomCode, this.playerName);
+      await this.raceService.joinRoom(this.roomCode, profile);
     } catch (err: any) {
       this.message = 'Odaya katılınamadı: ' + (err?.message ?? err);
       this.changeDetector.markForCheck();
     }
   }
 
-  onPlayerNameChange(value: string): void {
-    this.playerName = this.filterPlayerName(value);
+  updateProfile(profile: PlayerProfile): void {
+    this.profile = profile;
+    if (!this.isBrowser) return;
+
+    try {
+      localStorage.setItem(PLAYER_PROFILE_STORAGE_KEY, JSON.stringify({
+        ...profile,
+        nickname: profile.nickname.trim()
+      }));
+    } catch {
+      // Continue with the in-memory profile if browser storage is unavailable.
+    }
   }
 
   async setReady(): Promise<void> {
@@ -394,6 +421,8 @@ export class Race implements OnInit, OnDestroy {
     this.roomSettings = null;
     this.wrongKey = null;
     this.opponentName = '';
+    this.opponentAvatarId = null;
+    this.roomAvatarId = DEFAULT_AVATAR.id;
     this.myProgress = 0;
     this.opponentProgress = 0;
     this.countdown = 0;
@@ -402,7 +431,6 @@ export class Race implements OnInit, OnDestroy {
     this.rematchRequested = false;
     this.raceStarted = false;
     this.raceFinished = false;
-    this.winner = '';
     this.isWinner = false;
     this.result = null;
     this.message = '';
@@ -518,10 +546,12 @@ export class Race implements OnInit, OnDestroy {
         me.keystrokes
       );
       this.myProgress = me.progress;
+      this.roomAvatarId = avatarForId(me.avatarId ?? this.roomAvatarId).id;
     }
 
     if (opponent) {
       this.opponentName = opponent.name;
+      this.opponentAvatarId = opponent.avatarId;
       this.opponentProgress = opponent.progress;
     }
   }
@@ -543,10 +573,34 @@ export class Race implements OnInit, OnDestroy {
     });
   }
 
-  private filterPlayerName(value: string): string {
-    return Array.from(value)
-      .filter(character => PLAYER_NAME_CHARACTER.test(character))
-      .slice(0, 15)
-      .join('');
+  private loadProfile(): PlayerProfile {
+    if (this.isBrowser) {
+      try {
+        const stored: Partial<PlayerProfile> | null = JSON.parse(
+          localStorage.getItem(PLAYER_PROFILE_STORAGE_KEY) ?? 'null'
+        );
+        return {
+          nickname: typeof stored?.nickname === 'string'
+            ? filterNickname(stored.nickname.trim()).trim()
+            : '',
+          avatarId: avatarForId(stored?.avatarId).id
+        };
+      } catch {
+        // A malformed or inaccessible entry starts with the default profile.
+      }
+    }
+    return { nickname: '', avatarId: DEFAULT_AVATAR.id };
+  }
+
+  private profileForRoom(): PlayerProfile | null {
+    const nickname = filterNickname(this.profile.nickname.trim()).trim();
+    if (Array.from(nickname).length < 3) {
+      this.message = 'Oyuncu adı 3–16 karakter olmalı.';
+      return null;
+    }
+
+    const profile = { nickname, avatarId: avatarForId(this.profile.avatarId).id };
+    this.updateProfile(profile);
+    return profile;
   }
 }

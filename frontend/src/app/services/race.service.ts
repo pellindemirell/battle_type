@@ -3,6 +3,7 @@ import { inject, Injectable, PLATFORM_ID } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 import { environment } from '../../environment';
+import { PlayerProfile } from '../models/player-profile';
 import { RaceCharacterMode, RaceDifficulty } from '../models/race';
 
 @Injectable({
@@ -97,21 +98,24 @@ export class RaceService {
     difficulty: RaceDifficulty,
     wordCount: number,
     characterMode: RaceCharacterMode,
-    playerName: string
+    profile: PlayerProfile
   ): Promise<string> {
     await this.connect();
     return await this.requireConnection().invoke<string>(
-      'CreateRoom',
+      'CreateRoomWithProfile',
       difficulty,
       wordCount,
       characterMode,
-      playerName
+      profile.nickname,
+      profile.avatarId
     );
   }
 
-  async joinRoom(roomCode: string, playerName: string): Promise<void> {
+  async joinRoom(roomCode: string, profile: PlayerProfile): Promise<void> {
     await this.connect();
-    await this.requireConnection().invoke('JoinRoom', roomCode, playerName);
+    await this.requireConnection().invoke(
+      'JoinRoomWithProfile', roomCode, profile.nickname, profile.avatarId
+    );
   }
 
   async setReady(roomCode: string): Promise<void> {

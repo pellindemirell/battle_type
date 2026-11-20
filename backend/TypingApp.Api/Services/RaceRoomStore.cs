@@ -54,7 +54,11 @@ public enum RacePhase
 
 public sealed class PlayerState
 {
+    public const string DefaultAvatarId = "avatar-01";
+
     public string Name { get; set; } = "";
+
+    public string AvatarId { get; init; } = DefaultAvatarId;
 
     public int Position { get; set; }
 
@@ -74,6 +78,7 @@ public sealed class PlayerState
 public sealed record RacePlayerProgress(
     string Id,
     string Name,
+    string AvatarId,
     int Position,
     int Errors,
     int Keystrokes,
@@ -85,6 +90,7 @@ public sealed record RacePlayerProgress(
 public sealed record RacePlayerResult(
     string Id,
     string Name,
+    string AvatarId,
     int Position,
     int Errors,
     int Keystrokes,

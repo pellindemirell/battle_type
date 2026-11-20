@@ -11,6 +11,7 @@ export interface RaceRoomSettings {
 export interface RacePlayerProgress {
   id: string;
   name: string;
+  avatarId: string;
   position: number;
   errors: number;
   keystrokes: number;
@@ -23,6 +24,7 @@ export interface RacePlayerProgress {
 export interface RacePlayerResult {
   id: string;
   name: string;
+  avatarId: string;
   position: number;
   errors: number;
   keystrokes: number;
@@ -41,6 +43,7 @@ export interface RaceReadyStatus {
   players: Array<{
     id: string;
     name: string;
+    avatarId: string;
     ready: boolean;
   }>;
 }
