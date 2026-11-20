@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.Features;
@@ -86,6 +87,7 @@ public sealed class TypingHubTests
         Assert.Equal(expectedAvatar, creator.AvatarId);
         var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "RoomCreated");
         Assert.Equal(expectedAvatar, ReadProperty<string>(message.Arguments[0], "avatarId"));
+        Assert.Null(message.Arguments[0]!.GetType().GetProperty("text"));
     }
 
     [Theory]
@@ -105,10 +107,83 @@ public sealed class TypingHubTests
         Assert.Equal("avatar-01", fixture.Room.Players["player-1"].AvatarId);
         Assert.Equal(expectedAvatar, fixture.Room.Players["player-2"].AvatarId);
         var message = Assert.Single(fixture.Clients.Messages, item => item.Method == "PlayerJoined");
+        Assert.Null(message.Arguments[0]!.GetType().GetProperty("text"));
         var players = ReadProperty<RacePlayerProgress[]>(message.Arguments[0], "players");
         Assert.Equal(2, players.Length);
         Assert.Equal("avatar-01", players.Single(player => player.Id == "player-1").AvatarId);
         Assert.Equal(expectedAvatar, players.Single(player => player.Id == "player-2").AvatarId);
+    }
+
+    [Fact]
+    public async Task Ready_SendsTextOnlyAfterBothPlayersAndThreeSeconds()
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+
+        await fixture.Hub.Ready(fixture.Room.Code, true);
+        Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+        Assert.DoesNotContain(fixture.Clients.Messages, item => item.Method == "CountdownStarted");
+
+        await opponent.Ready(fixture.Room.Code, true);
+        Assert.Equal(RacePhase.Countdown, fixture.Room.Phase);
+        var countdown = Assert.Single(fixture.Clients.Messages, item => item.Method == "CountdownStarted");
+        Assert.Equal(3, countdown.Arguments[0]);
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(2999));
+        await fixture.Hub.KeyPress(fixture.Room.Code, "a");
+        Assert.Equal(0, fixture.Player.Keystrokes);
+        Assert.Null(fixture.Room.StartedAt);
+
+        fixture.TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        var started = await WaitForMessage(fixture, "RaceStarted");
+        Assert.Equal(RacePhase.Running, fixture.Room.Phase);
+        Assert.Equal(fixture.TimeProvider.GetUtcNow().UtcDateTime, fixture.Room.StartedAt);
+        Assert.Equal("a", ReadProperty<string>(started.Arguments[0], "text"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Countdown_IsCanceledByUnreadyOrDisconnect(bool disconnect)
+    {
+        var fixture = CreateWaitingRoom();
+        var opponent = CreateHubForPlayer(fixture, "player-2");
+        opponent.Clients = fixture.Hub.Clients;
+        await fixture.Hub.Ready(fixture.Room.Code, true);
+        await opponent.Ready(fixture.Room.Code, true);
+
+        if (disconnect)
+            await opponent.OnDisconnectedAsync(null);
+        else
+            await opponent.Ready(fixture.Room.Code, false);
+
+        fixture.TimeProvider.Advance(TimeSpan.FromSeconds(4));
+        Assert.Equal(RacePhase.Waiting, fixture.Room.Phase);
+        Assert.Null(fixture.Room.StartedAt);
+        Assert.Contains(fixture.Clients.Messages, item => item.Method == "CountdownCanceled");
+        Assert.DoesNotContain(fixture.Clients.Messages, item => item.Method == "RaceStarted");
+    }
+
+    private static HubFixture CreateWaitingRoom()
+    {
+        var fixture = CreateRunningRoom("a");
+        fixture.Room.Phase = RacePhase.Waiting;
+        fixture.Room.StartedAt = null;
+        fixture.Room.Players.Add("player-2", new PlayerState { Name = "Other" });
+        return fixture;
+    }
+
+    private static async Task<SentMessage> WaitForMessage(HubFixture fixture, string method)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            var message = fixture.Clients.Messages.FirstOrDefault(item => item.Method == method);
+            if (message is not null)
+                return message;
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException($"Expected {method}.");
     }
 
     private static T ReadProperty<T>(object? payload, string name)
@@ -279,17 +354,84 @@ public sealed class TypingHubTests
     private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;
+        private readonly List<ManualTimer> _timers = [];
 
-        public override DateTimeOffset GetUtcNow() => _now;
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_timers)
+                return _now;
+        }
 
-        public void Advance(TimeSpan elapsed) => _now += elapsed;
+        public override ITimer CreateTimer(
+            TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        public void Advance(TimeSpan elapsed)
+        {
+            ManualTimer[] expired;
+            lock (_timers)
+            {
+                _now += elapsed;
+                expired = _timers.Where(timer => timer.DueAt <= _now).ToArray();
+                foreach (var timer in expired)
+                    _timers.Remove(timer);
+            }
+            foreach (var timer in expired)
+                timer.Fire();
+        }
+
+        private sealed class ManualTimer(ManualTimeProvider clock, TimerCallback callback, object? state)
+            : ITimer
+        {
+            private bool _disposed;
+            public DateTimeOffset DueAt { get; private set; }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                Assert.Equal(Timeout.InfiniteTimeSpan, period);
+                lock (clock._timers)
+                {
+                    if (_disposed)
+                        return false;
+
+                    clock._timers.Remove(this);
+                    if (dueTime != Timeout.InfiniteTimeSpan)
+                    {
+                        DueAt = clock._now + dueTime;
+                        clock._timers.Add(this);
+                    }
+                    return true;
+                }
+            }
+
+            public void Fire() => callback(state);
+
+            public void Dispose()
+            {
+                lock (clock._timers)
+                {
+                    _disposed = true;
+                    clock._timers.Remove(this);
+                }
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     public class RecordingHubCallerClients : DispatchProxy
     {
-        private readonly List<SentMessage> _messages = [];
+        private readonly ConcurrentQueue<SentMessage> _messages = new();
 
-        public IReadOnlyList<SentMessage> Messages => _messages;
+        public IReadOnlyList<SentMessage> Messages => _messages.ToArray();
 
         protected override object? Invoke(
             MethodInfo? targetMethod,
@@ -300,7 +442,7 @@ public sealed class TypingHubTests
     public sealed record SentMessage(string Method, object?[] Arguments);
 
     private sealed class RecordingClientProxy(
-        List<SentMessage> messages) : ISingleClientProxy
+        ConcurrentQueue<SentMessage> messages) : ISingleClientProxy
     {
         public Task<T> InvokeCoreAsync<T>(
             string method,
@@ -313,7 +455,7 @@ public sealed class TypingHubTests
             object?[] args,
             CancellationToken cancellationToken = default)
         {
-            messages.Add(new SentMessage(method, args));
+            messages.Enqueue(new SentMessage(method, args));
             return Task.CompletedTask;
         }
     }
